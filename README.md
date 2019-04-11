@@ -2,7 +2,7 @@
 Smart-contract templates for com-chain hosted currency
 
 Those are free and open-source Smartcontracts to run an ethereum token based currency and barter system.
-It was created and is maintained by Florian and Dominique on behalf of Monnaie Leman the Leman Lake Local Currency. Then used as templates for the other currency hosted by Com-Chain (see com-chain.org)
+It was created and by Florian and Dominique on behalf of Monnaie Leman the Leman Lake Local Currency. Then maintained and used as templates for the other currency hosted by Com-Chain (see com-chain.org)
 
 ## Features
 
