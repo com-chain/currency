@@ -258,6 +258,7 @@ contract _template_ is owned {
     
     // ensure the ETH level of the account
     topUp(_targetAccount);
+    topUp(msg.sender);
   }
   
  
