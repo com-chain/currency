@@ -18,6 +18,12 @@ Account management includes:
 - Setting barter limits
 - Sending initial monney
 
+## Configuration
+
+- If you are planning to use the contract withing the Com-Chain framework, you must keep the function signature.
+- Unused function can have their body replaced by a revert() statment.
+- You should choose in the pledge function between two check: one is checking for overflow, the second also check for non-negative pledge.
+
 ## Our Philosophy
 
 - Empower the people: Give people the ability to interact with the Ethereum blockchain easily, without having to run a full node.

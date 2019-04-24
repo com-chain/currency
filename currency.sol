@@ -12,6 +12,12 @@ The following functionality are implemented (details in the code):
 - Automatic approval of reverse payment
 - Payement on behalf of an other user
 
+
+Configuration: 
+
+- pledge function: you have to define if it is possible to pledge negative amount
+                   by switchng between the two "check for overflow" lines
+
 *********************************************************/
 
 
@@ -260,7 +266,8 @@ contract _template_ is owned {
   function pledge(address _to, int256 _value)  internal {
     if (accountType[msg.sender] < 2) revert();                                  // Check that only Special Accounts (3) can pledge
     if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
-    if (balanceEL[_to] + _value < balanceEL[_to]) revert();                     // Check for overflows
+    if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
+    // if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
     balanceEL[_to] += _value;                                                   // Add the amount to the recipient
     amountPledged += _value;                                                    // and to the Money supply
     
