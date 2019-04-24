@@ -274,6 +274,7 @@ contract _template_ is owned {
     emit Pledge(now, _to, _value);
     // ensure the ETH level of the account
     topUp(_to);
+    topUp(msg.sender);
   }
   
   
