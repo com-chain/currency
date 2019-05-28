@@ -265,7 +265,7 @@ contract _template_ is owned {
   /****** Coin and Barter transfert *******/ 
   /* Coin creation (Nantissement) */
   function pledge(address _to, int256 _value)  internal {
-    if (accountType[msg.sender] < 2) revert();                                  // Check that only Special Accounts (3) can pledge
+    if (accountType[msg.sender] < 2) revert();                                  // Check that only Special Accounts (2) can pledge
     if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
     if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
     // if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
