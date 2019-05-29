@@ -26,8 +26,9 @@ contract owned {
 
 /***********************************************
   Main contract. 
+  The existing interface must remain unchanged !
 ***********************************************/
-contract couer is owned {
+contract coeur is owned {
 
   /* Name and symbol (for ComChain internal use) */
   string  public standard       = 'Coeur';
@@ -207,6 +208,9 @@ contract couer is owned {
         for (uint i=0; i<arrayLength; i++) {
            balanceEL[i] -= (fonte_taux * balanceEL[i])/100;
         }
+        
+        // adjust the total of coin 
+        amountPledged-= (fonte_taux * amountPledged)/100;
   }
   
   /****** Account handling *******/
@@ -308,6 +312,7 @@ contract couer is owned {
     
     int256 transmitted = _value;
    
+   
     if (accountType[_from] == 3){                                               // Assoc (3) -> benevole (0)
         if (accountType[_to] != 0) revert();
     }
@@ -329,7 +334,8 @@ contract couer is owned {
     
     // Do the transfert
     balanceEL[_from] -= _value ;                                                // Subtract from the sender
-    balanceEL[_to] += transmitted; 
+    balanceEL[_to] += transmitted;                                              // add to the destinary
+    amountPledged -= _value - transmitted;                                      // adjust the total coin
     
     if (!accountStatus[_to]) accountStatus[_to]=true;                           // unlock destinary account if needed 
     emit Transfer(now, _from, _to, _value, 0, transmitted);                     // Notify anyone listening that this transfer took place
