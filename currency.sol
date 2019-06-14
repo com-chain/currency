@@ -61,10 +61,12 @@ contract coeur is owned {
   
 
   /* Account property: */
-  mapping (address => int256) public accountType;               // Account type 2 = special account 1 = Business 0 = Personal 3=association
-  mapping (address => bool) public accountStatus;               // Account status
-  mapping (address => int256) public balanceEL;                 // Balance in coins
-
+  mapping (address => int256) internal accountType;               // Account type 2 = special account 1 = Business 0 = Personal 3=association
+  mapping (address => bool) internal accountStatus;               // Account status
+  mapping (address => int256) internal  balanceEL ;               // Balance in coins
+  mapping (address => bool) internal embeded;                     // Account already embeded
+  address[] internal members;                                   // list of members
+  uint256 member_number =0;
  
 
   /* Event to notify the clients */
@@ -76,11 +78,16 @@ contract coeur is owned {
   event Pledge(uint256 time, address indexed to, int256 recieved);
   event Transfer(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 recieved);
  
+
+ 
+ 
+ 
   /****************************************************************************/ 
   /***** Contract creation *******/
   /* Initializes contract */
-   constructor(address taxAddress, int8 taxPercent, int8 taxPercentLeg) public {
+   constructor(address taxAddress, int8 , int8 ) public {
     txAddr = taxAddress;
+    
     setFirstAdmin();
   }
   
@@ -152,65 +159,74 @@ contract coeur is owned {
   }
   
   /* Get the tax percentage for transaction to a person (0) account */
-  function getTaxPercent() public constant returns (int16) {
+  function getTaxPercent() public pure returns (int16) {
     return 0;
   }
 
   /* Set the tax percentage for transaction to a person (0) account */
-  function setTaxPercent(int16 _value) public onlyOwner {
+  function setTaxPercent(int16) public view onlyOwner {
     revert();
   }
   
   /* Get the tax percentage for transaction to a buisness (1) account */
-  function getTaxPercentLeg() public constant returns (int16) {
+  function getTaxPercentLeg() public pure returns (int16) {
     return 0;
   }
   
   /* Set the tax percentage for transaction to a buisness (1) account */ 
-  function setTaxPercentLeg(int16 _value) public onlyOwner {
+  function setTaxPercentLeg(int16) public view onlyOwner {
     revert();
   }
   
   /******** Gestion fonte ***************/
   /* Get the melting through transfert from "partnair" (1) to "association" (3) */
   function GetTransferedRatePartAsso() public constant returns (int256) {
-    return partenaire_association_taux;
+    return int256(partenaire_association_taux);
   }
   /* Set  the melting through transfert from "partnair" (1) to "association" (3) */
   function SetTransferedRatePartAsso(int256 _value) public onlyOwner {
     if (_value<0 || _value>100) revert();
-    partenaire_association_taux = _value;
+    partenaire_association_taux = uint256(_value);
   }
   
   /* Get the melting through transfert from "partnair" (1) to "employee" (0) */
   function GetTransferedRatePartEmploy() public constant returns (int256) {
-    return partenaire_employe_taux;
+    return int256(partenaire_employe_taux);
   }
   /* Set  the melting through transfert from "partnair" (1) to "employee" (0) */
   function SetTransferedRatePartEmploy(int256 _value) public onlyOwner {
     if (_value<0 || _value>100) revert();
-    partenaire_employe_taux = _value;
+    partenaire_employe_taux = uint256(_value);
   }
   
   /* Get the melting Rate */
   function GetMeltingRateAsso() public constant returns (int256) {
-    return fonte_taux;
+    return int256(fonte_taux);
   }
   
   /* Set  the melting rate*/
-  function SetMeltingRate(int256 _value, ) public onlyOwner {
+  function SetMeltingRate(int256 _value) public onlyOwner {
     if (_value<0 || _value>100) revert();
-    fonte_taux = _value;
+    fonte_taux = uint256(_value);
   }
   
-  function Melt() public onlyOwner {
-        uint arrayLength = balanceEL.length;
-        for (uint i=0; i<arrayLength; i++) {
-           balanceEL[i] -= (fonte_taux * balanceEL[i])/100;
+  
+   /***Member counting***/
+  function  embed(address _member) internal {
+    if (!embeded[_member]){
+        embeded[_member] = true;
+        member_number = members.push(_member);
+    }
+  }
+   
+  
+  function melt() public onlyOwner {
+        for (uint i=0; i<member_number; i++) {
+           balanceEL[members[i]] -= (int256(fonte_taux) * balanceEL[members[i]])/100;
         }
         
         // adjust the total of coin 
-        amountPledged-= (fonte_taux * amountPledged)/100;
+        amountPledged-= (int256(fonte_taux) * amountPledged)/100;
   }
   
   /****** Account handling *******/
@@ -221,7 +237,7 @@ contract coeur is owned {
   }
   
   /* Change account's property */  
-  function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
+  function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 , int256 ) public {
   
     // Ensure that the sender is an admin and is not blocked
     if (msg.sender!=owner){
@@ -261,7 +277,7 @@ contract coeur is owned {
     if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
     balanceEL[_to] += _value;                                                   // Add the amount to the recipient
     amountPledged += _value;                                                    // and to the Money supply
-    
+    embed(_to);                                                                 // ensure the account is listed for the coin melting
     emit Pledge(now, _to, _value);
     // ensure the ETH level of the account
     topUp(_to);
@@ -275,30 +291,35 @@ contract coeur is owned {
   }
 
   /* Make Direct payment in CM*/
-  function transferCM(address _to, int256 _value) public {
+  function transferCM(address , int256 ) public pure{
    // No CM
+   revert();
   }
   
   /* Transfert "on behalf of" of Coin and Mutual Credit (delegation) */
   /* Make Transfert "on behalf of" in coins*/
-  function transferOnBehalfOf(address _from, address _to, int256 _value)public  {
+  function transferOnBehalfOf(address , address , int256 )public pure {
     // No Delegation
+   revert();
   }
   
   /* Make  Transfert "on behalf of" in Mutual Credit */
-  function transferCMOnBehalfOf(address _from, address _to, int256 _value)public {
+  function transferCMOnBehalfOf(address , address , int256 )public pure{
     // No CM
+   revert();
   }
 
   /* Transfert request of Coin and Mutual Credit (delegation & pay request)*/
   // Send _value Coin from address _from to the sender
-  function transferFrom(address _from, int256 _value) public {
+  function transferFrom(address , int256 ) public pure {
    // No Request
+   revert();
   }
   
   // Send _value Mutual Credit from address _from to the sender
-  function transferCMFrom(address _from, int256 _value) public {
+  function transferCMFrom(address , int256 ) public pure{
     // No Request
+   revert();
   }
   
   
@@ -309,6 +330,7 @@ contract coeur is owned {
   function payNant(address _from,address _to, int256 _value) internal {
     if (!actif) revert();                                                       // panic lock
     if (!accountStatus[_from]) revert();                                        // Check sender is not locked
+    
     
     int256 transmitted = _value;
    
@@ -323,9 +345,9 @@ contract coeur is owned {
     
     if (accountType[_from] == 1){                                               //  parteneair (1) ->
         if (accountType[_to] == 3) {                                            // -> association (3) avec fonte
-            transmitted = (partenaire_association_taux*_value)/100;
+            transmitted = (int256(partenaire_association_taux)*_value)/100;
         } else if (accountType[_to] == 0) {                                     // -> employe  (0) avec fonte
-            transmitted = (partenaire_employe_taux*_value)/100;
+            transmitted = (int256(partenaire_employe_taux)*_value)/100;
         } else revert();                              
     }
     
@@ -340,15 +362,11 @@ contract coeur is owned {
     if (!accountStatus[_to]) accountStatus[_to]=true;                           // unlock destinary account if needed 
     emit Transfer(now, _from, _to, _value, 0, transmitted);                     // Notify anyone listening that this transfer took place
    
+    embed(_to);                                                                 // ensure the account is listed for the coin melting
     topUp(_to);                                                                 // ensure the ETH level of the account
     topUp(_from);
   } 
-  
-  /* INTERNAL - Mutual Credit (Barter) transfert  */
-  function payCM(address _from, address _to, int256 _value) public {
-    // No CM
-    revert();
-  }
+
   
   /* INTERNAL - Check the sender has enough coin to do the transfert */
   function checkEL(address _addr, int256 _value) internal view returns (bool)  {
@@ -360,56 +378,44 @@ contract coeur is owned {
     }
   }
 
-  /* INTERNAL - Check that the sender can send the CM amount */
-  function checkCMMin(address _addr, int256 _value) internal  view returns (bool) {
-    // No CM
-    revert();
-  }
-  
-  /* INTERNAL - Check that the reciever can recieve the CM amount */
-  function checkCMMax(address _addr, int256 _value) internal view returns (bool) {
-    // No CM
-    revert();
-  }
+
+
   
 
   /****** Allowance *******/ 
   /* Allow _spender to withdraw from your account, multiple times, up to the _value amount.  */
   /* If called again the _amount is added to the allowance, if amount is negatif the allowance is deleted  */
-  function approve(address _spender, int256 _amount) public returns (bool success) {
-    revert(); 
+  function approve(address, int256) public pure returns (bool success) {
+    return false;
   }
   
-  /* INTERNAL - Allow the spender to decrasse the allowance */
-  function updateAllowed(address _from, address _to, int256 _value) internal {
-     revert(); 
-  }
+
   
   /* Count the number of allowances define on the _owner account */
-  function allowanceCount(address _owner) public constant returns (uint256){
+  function allowanceCount(address ) public pure returns (uint256){
     return 0;
   }
 
   /* Count the number of allowance that the _spender can use */
-  function myAllowanceCount(address _spender) public constant returns (uint256){
+  function myAllowanceCount(address ) public pure returns (uint256){
     return 0;
   }
   
   /** list the allowances define on a given _owner account  **/
-  function allowance(address _owner, address _spender) public constant returns (int256 remaining) {
+  function allowance(address , address ) public pure returns (int256 remaining) {
     return 0;
   }
 
-  function getAllowance(address _owner, uint index) public constant returns (address _to) {
+  function getAllowance(address , uint ) public pure returns (address _to) {
      return address(0); 
   }
 
   /** list the allowances that a _spender account can use **/
-  function myAllowance(address _spender, address _owner) public constant returns (int256 remaining) {
+  function myAllowance(address , address ) public pure returns (int256 remaining) {
     return 0;
   }
 
-  function myGetAllowance(address _spender, uint index) public constant returns (address _to) {
+  function myGetAllowance(address , uint ) public pure returns (address _to) {
      return address(0); 
   }
 
@@ -418,35 +424,35 @@ contract coeur is owned {
   /****** Delegation *******/ 
   /* Allow _spender to pay on behalf of you from your account, multiple times, each transaction bellow the limit. */
   /* If called again the limit is replaced by the new _amount, if _amount is 0 the delegation is removed */
-  function delegate(address _spender, int256 _amount) public {
+  function delegate(address , int256 ) public pure {
     revert();
   }
   
   /* Count the number of delegation define on the _owner account */
-  function delegationCount(address _owner) public constant returns (uint256){
+  function delegationCount(address ) public pure  returns (uint256){
     return 0;
   }
 
   /* Count the number of delegation that the _spender can use */
-  function myDelegationCount(address _spender) public constant returns (uint256){
+  function myDelegationCount(address ) public pure  returns (uint256){
     return 0;
   }
   
   /** list the delegation define on a given _owner account  **/
-  function delegation(address _owner, address _spender)public  constant returns (int256 remaining) {
+  function delegation(address , address )public  pure  returns (int256 remaining) {
     return 0;
   }
 
-  function getDelegation(address _owner, uint index) public constant returns (address _to) {
+  function getDelegation(address , uint ) public pure  returns (address _to) {
      return address(0); 
   }
 
   /** list the delegations that a _spender account can use **/
-  function myDelegation(address _spender, address _owner) public constant returns (int256 remaining) {
+  function myDelegation(address , address ) public pure  returns (int256 remaining) {
     return 0;
   }
 
-  function myGetDelegation(address _spender, uint index)public  constant returns (address _to) {
+  function myGetDelegation(address , uint )public  pure  returns (address _to) {
     return address(0); 
   }
 
@@ -454,77 +460,70 @@ contract coeur is owned {
   
   /****** Payment Request *******/ 
   /* Add Request*/
-  function insertRequest( address _from,  address _to, int256 _amount) public {
+  function insertRequest( address ,  address , int256 ) public pure {
     revert();
   }
+
   
-  /* INTERNAL - Allow the account who pay to decrasse the request amount */
-  function updateRequested(address _from, address _to, int256 _value) internal {
-     revert(); 
-  }
-  
-  /* INTERNAL - Allow the account who pay to delete the request  */
-  function clear_request(address _from, address _to) internal {
-    revert(); 
- }
+
   
  /* Count the number of request define on the _owner account */
- function requestCount(address _owner) public constant returns (uint256){
+ function requestCount(address ) public pure  returns (uint256){
     return 0;
   }
 
   /* Count the number of request issued by the _spender account */
-  function myRequestCount(address _spender) public constant returns (uint256){
+  function myRequestCount(address ) public pure  returns (uint256){
     return 0;
   }
   
 
 
   /** list the open pay request define for a given _owner account  **/
-  function request(address _owner, address _spender) public constant returns (int256 remaining) {
+  function request(address , address ) public pure  returns (int256 remaining) {
     return 0;
   }
 
-  function getRequest(address _owner, uint index) public constant returns (address _to) {
+  function getRequest(address , uint ) public pure  returns (address _to) {
     return address(0); 
   }
 
 
   /** list the open request that a _spender account has defined **/
-  function myRequest(address _spender, address _owner) public constant returns (int256 remaining) {
+  function myRequest(address , address ) public pure  returns (int256 remaining) {
     return 0;
   }
 
-  function myGetRequest(address _spender, uint index) public constant returns (address _to) {
+  function myGetRequest(address , uint ) public pure  returns (address _to) {
     return address(0); 
   }
 
 
   /** list the accepted request which have been created by a _owner account **/ 
-  function acceptedAmount(address _owner, address _spender) public constant returns (int256 remaining) {
+  function acceptedAmount(address , address ) public pure  returns (int256 remaining) {
     return 0;
   }
   
-  function acceptedCount(address _owner) public constant returns (uint256){
+  function acceptedCount(address ) public pure  returns (uint256){
     return 0;
   }
 
-  function getAccepted(address _owner, uint index) public constant returns (address _to) {
+  function getAccepted(address , uint ) public pure  returns (address _to) {
     return address(0); 
   }
 
 
 
   /** list the rejected request which have been created by a _owner account **/ 
-  function rejectedAmount(address _owner, address _spender) public constant returns (int256 remaining) {
+  function rejectedAmount(address , address ) public pure  returns (int256 remaining) {
     return 0;
   }
 
-  function getRejected(address _owner, uint index) public constant returns (address _to) {
+  function getRejected(address , uint ) public pure  returns (address) {
    return address(0); 
   }
 
-  function rejectedCount(address _owner)public  constant returns (uint256){
+  function rejectedCount(address )public  pure  returns (uint256){
     return 0;
   }
 
@@ -532,30 +531,30 @@ contract coeur is owned {
   
   /****  Request handling  ****/
   /* Accept and pay in coin a payment request (also delete the request if needed and add it to the accepted list) */
-  function payRequest(address _to, int256 _value) public {
+  function payRequest(address , int256 ) public pure {
     revert();
   }
   
   
   /* Accept and pay in mutual credit a payment request (also delete the request if needed and add it to the accepted list) */
-  function payRequestCM(address _to, int256 _value) public{
+  function payRequestCM(address , int256 ) public pure{
     revert();
   }
   
 
   /* Discard a payement request put it into the rejected request. */
-  function cancelRequest(address _to)public {
+  function cancelRequest(address )public pure{
     revert();
   }
   
   
   /* Discard acceptation information */
-  function discardAcceptedInfo(address _spender) public {
+  function discardAcceptedInfo(address ) public pure{
     revert();
   }
   
   /* Discard rejected incormation */
-  function discardRejectedInfo(address _spender)public{
+  function discardRejectedInfo(address ) public pure{
     revert();
   }
 }
