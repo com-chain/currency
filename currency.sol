@@ -264,7 +264,7 @@ contract _template_ is owned {
  
   /****** Coin and Barter transfert *******/ 
   /* Coin creation (Nantissement) */
-  function pledge(address _to, int256 _value)  internal {
+  function pledge(address _to, int256 _value)  public {
     if (accountType[msg.sender] < 2) revert();                                  // Check that only Special Accounts (2) can pledge
     if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
     if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
@@ -364,7 +364,7 @@ contract _template_ is owned {
   } 
   
   /* INTERNAL - Mutual Credit (Barter) transfert  */
-  function payCM(address _from, address _to, int256 _value) public {
+  function payCM(address _from, address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
     if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
     if (!accountStatus[_to]) revert();
