@@ -269,7 +269,7 @@ contract coeur is owned {
  
   /****** Coin and Barter transfert *******/ 
   /* Coin creation (Nantissement) */
-  function pledge(address _to, int256 _value)  internal {
+  function pledge(address _to, int256 _value)  public {
     if (accountType[msg.sender] != 2) revert();                                 // Check that only Special Accounts (2) can pledge
     if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
     if (accountType[_to] != 3) revert();                                        // Only the "association" (3) can recieve pledge  
