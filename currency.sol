@@ -2,16 +2,6 @@ pragma solidity ^0.4.11;
 
 /********************************************************
 
-This contract set is a template for currency's contracts.
-
-The following functionality are implemented (details in the code):
-- Currency administration
-- Account management
-- Payments
-- Reverse Payment
-- Automatic approval of reverse payment
-- Payement on behalf of an other user
-
 
 Configuration: 
 
@@ -45,12 +35,12 @@ contract owned {
 /***********************************************
   Main contract. 
 ***********************************************/
-contract _template_ is owned {
+contract Racine is owned {
 
   /* Name and symbol (for ComChain internal use) */
-  string  public standard       = '_template_';
-  string  public name           = "_name_";
-  string  public symbol         = "_symbol_";
+  string  public standard       = 'Racine';
+  string  public name           = "Racine";
+  string  public symbol         = "Racine";
   
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
@@ -79,10 +69,7 @@ contract _template_ is owned {
   mapping (address => int256) public accountType;               // Account type 2 = special account 1 = Business 0 = Personal
   mapping (address => bool) public accountStatus;               // Account status
   mapping (address => int256) public balanceEL;                 // Balance in coins
-  mapping (address => int256) public balanceCM;                 // Balance in Mutual credit
-  mapping (address => int256) public limitCredit;               // Min limit (minimal accepted CM amount expected to be 0 or <0 )
-  mapping (address => int256) public limitDebit;                // Max limit  (maximal accepted CM amount expected to be 0 or >0 )
-  
+   
   /* Allowance, Authorization and Request:*/
   
   mapping (address => mapping (address => int256)) public allowed;     // Array of allowed payements
@@ -218,26 +205,19 @@ contract _template_ is owned {
   }
   
   /* Get the tax percentage for transaction to a buisness (1) account */
-  function getTaxPercentLeg() public constant returns (int16) {
-    return percentLeg;
-  }
-  
-  /* Set the tax percentage for transaction to a buisness (1) account */ 
-  function setTaxPercentLeg(int16 _value) public onlyOwner {
-    if (_value < 0) revert();
-    if (_value > 10000) revert();
-    percentLeg = _value;
+  function getTaxPercentLeg() public pure returns (int16) {
+    return 0;
   }
   
   /****** Account handling *******/
 
   /* Get the total balance of an account */
   function balanceOf(address _from) public constant returns (int256 amount){
-     return  balanceEL[_from] + balanceCM[_from];
+     return  balanceEL[_from];
   }
   
   /* Change account's property */  
-  function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
+  function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 , int256 ) public {
   
     // Ensure that the sender is an admin and is not blocked
     if (msg.sender!=owner){
@@ -249,12 +229,10 @@ contract _template_ is owned {
     // Prevent changing the Type of an Admin (2) account
     if (accountType[_targetAccount] != 2){
         accountType[_targetAccount] = _accountType;
-        limitDebit[_targetAccount] = _debitLimit;
-        limitCredit[_targetAccount] = _creditLimit;
         
     }
     
-    emit SetAccountParams(now, _targetAccount, _accountStatus, accountType[_targetAccount], limitDebit[_targetAccount],  limitCredit[_targetAccount]);
+    emit SetAccountParams(now, _targetAccount, _accountStatus, accountType[_targetAccount], 0, 0);
     
     // ensure the ETH level of the account
     topUp(_targetAccount);
@@ -284,10 +262,7 @@ contract _template_ is owned {
     payNant(msg.sender,_to,_value);
   }
 
-  /* Make Direct payment in CM*/
-  function transferCM(address _to, int256 _value) public {
-   payCM(msg.sender,_to,_value);
-  }
+ 
   
   /* Transfert "on behalf of" of Coin and Mutual Credit (delegation) */
   /* Make Transfert "on behalf of" in coins*/
@@ -296,11 +271,7 @@ contract _template_ is owned {
     payNant(_from,_to,_value);
   }
   
-  /* Make  Transfert "on behalf of" in Mutual Credit */
-  function transferCMOnBehalfOf(address _from, address _to, int256 _value)public {
-    if (delegated[_from][msg.sender] < _value) revert();
-    payCM(_from,_to,_value);
-  }
+
 
   /* Transfert request of Coin and Mutual Credit (delegation & pay request)*/
   // Send _value Coin from address _from to the sender
@@ -316,18 +287,7 @@ contract _template_ is owned {
     }
   }
   
-  // Send _value Mutual Credit from address _from to the sender
-  function transferCMFrom(address _from, int256 _value) public {
-    if (allowed[_from][msg.sender] >= _value  && balanceCM[_from]>=_value) {
-     payCM(_from, msg.sender,_value);
-     
-     // substract the value from the allowed
-     updateAllowed(_from, msg.sender, -_value);
-     
-    } else {
-      insertRequest(_from,  msg.sender, _value);                   // if allowed is not enough (or do not exist) create a request
-    }
-  }
+  
   
   
   
@@ -363,37 +323,7 @@ contract _template_ is owned {
     topUp(_from);
   } 
   
-  /* INTERNAL - Mutual Credit (Barter) transfert  */
-  function payCM(address _from, address _to, int256 _value) internal {
-    if (!actif) revert();  // panic lock
-    if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
-    if (!accountStatus[_to]) revert();
-    
-    // compute the tax
-    int16 tax_percent = percent;
-    if (accountType[_to] == 1){
-        tax_percent = percentLeg;
-    }
-    int256 tax = (_value * tax_percent) / 10000;
-    
-    // compute the recieved ammount
-    int256 amount = _value - tax;
-    
-    // Check the limit & overflow
-    if (!checkCMMin(_from, amount + tax)) revert();
-    if (!checkCMMax(_to, amount)) revert();
-    if (balanceCM[_to] + amount < balanceCM[_to]) revert(); //overflow check
-    
-    // Do the transfert
-    balanceCM[_from] -= amount + tax;         // Subtract from the sender
-    balanceCM[_to] += amount;    
-    balanceCM[txAddr] += tax;
-    
-    emit TransferCredit(now, _from, _to, amount+tax, tax, amount);  // Notify anyone listening that this transfer took place
-    // ensure the ETH level of the account
-    topUp(_to);
-    topUp(_from);
-  }
+ 
   
   /* INTERNAL - Check the sender has enough coin to do the transfert */
   function checkEL(address _addr, int256 _value) internal view returns (bool)  {
@@ -405,27 +335,7 @@ contract _template_ is owned {
     }
   }
 
-  /* INTERNAL - Check that the sender can send the CM amount */
-  function checkCMMin(address _addr, int256 _value) internal  view returns (bool) {
-    int256 checkBalance = balanceCM[_addr] - _value;
-    int256 limitCM = limitCredit[_addr];
-    if (checkBalance < limitCM) {
-      revert();
-    } else {
-      return true;
-    }
-  }
-  
-  /* INTERNAL - Check that the reciever can recieve the CM amount */
-  function checkCMMax(address _addr, int256 _value) internal view returns (bool) {
-    int256 checkBalance = balanceCM[_addr] + _value;
-    int256 limitCM = limitDebit[_addr];
-    if (checkBalance > limitCM) {
-      revert();
-    } else {
-      return true;
-    }
-  }
+ 
   
 
   /****** Allowance *******/ 
@@ -783,18 +693,7 @@ contract _template_ is owned {
   }
   
   
-  /* Accept and pay in mutual credit a payment request (also delete the request if needed and add it to the accepted list) */
-  function payRequestCM(address _to, int256 _value) public{
-    payCM(msg.sender,_to,_value);
-    updateRequested(msg.sender, _to, -_value);
-    
-    if (accepted[_to][msg.sender] == 0) {
-         acceptedMap[_to].push(msg.sender);
-    }
-    accepted[_to][msg.sender] += _value;
-    
-    clear_request(msg.sender,_to);
-  }
+ 
   
 
   /* Discard a payement request put it into the rejected request. */
