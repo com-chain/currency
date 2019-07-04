@@ -63,7 +63,7 @@ contract coeur is owned {
   /* Account property: */
   mapping (address => int256) public accountType;               // Account type 2 = special account 1 = Business 0 = Personal 3=association
   mapping (address => bool) public accountStatus;               // Account status
-  mapping (address => int256) internal  balanceEL ;               // Balance in coins
+  mapping (address => int256) public  balanceEL ;               // Balance in coins
   mapping (address => bool) internal embeded;                     // Account already embeded
   address[] internal members;                                   // list of members
   uint256 member_number =0;
