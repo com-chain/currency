@@ -351,7 +351,7 @@ contract coeur is owned {
         } else revert();                              
     }
     
-    if (!checkEL(_from, transmitted)) revert();                                 // check coin availability
+    if (!checkEL(_from, _value)) revert();                                      // check coin availability
     if (balanceEL[_to] + transmitted < balanceEL[_to]) revert();                // overflow check
     
     // Do the transfert
