@@ -13,7 +13,7 @@ This contract recive eth and dispatch them to a list of contracts.
 contract owned {
   address public owner;
 
- function owned() public{
+  constructor() public{
     owner = msg.sender;
   }
   
@@ -105,8 +105,8 @@ contract dispatch is owned {
   /* In the case we need to retrieve Eth from the contract. Sent it back to the Owner */
   function repay(uint _amount) public onlyOwner {
       uint amount = _amount * 1 ether;
-      if(amount> this.balance){
-          amount= this.balance;
+      if(amount> address(this).balance){
+          amount= address(this).balance;
       }
       owner.transfer(amount); 
   }
@@ -114,7 +114,7 @@ contract dispatch is owned {
   /***** Ether handling *******/
   /* The contract dispatch Eth: it must be able to recieve them */
   function () public payable {
-    Recieved(now, msg.value/(1 ether));
+   emit Recieved(now, msg.value/(1 ether));
   
     uint add_number = target_addresses.length;
     if (add_number>0) {
@@ -139,15 +139,15 @@ contract dispatch is owned {
     uint256 base_amount = msg.value;
     for (i = 0; i<target_addresses.length; i++){
        if (! target_addresses[i].send((base_amount*balances[i])/total)){
-          UnableToDispatchTo(now, target_addresses[i]); //0.4.21 add emit
+          emit UnableToDispatchTo(now, target_addresses[i]); //0.4.21 add emit
        }
     }
     
-    base_amount = this.balance;  // in solidity 0.5 => address(this)
+    base_amount = address(this).balance;  // in solidity 0.5 => address(this)
     if (base_amount> 1 ether){
        for (i = 0; i<target_addresses.length; i++){
           if (! target_addresses[i].send((base_amount*balances[i])/total)){
-             UnableToDispatchTo(now, target_addresses[i]); //0.4.21 add emit
+             emit UnableToDispatchTo(now, target_addresses[i]); //0.4.21 add emit
           }
        }
     }
@@ -156,6 +156,7 @@ contract dispatch is owned {
   }
 }
  
+
 
 
 
