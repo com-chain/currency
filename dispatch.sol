@@ -114,7 +114,8 @@ contract dispatch is owned {
   /***** Ether handling *******/
   /* The contract dispatch Eth: it must be able to recieve them */
   function () public payable {
-    emit Recieved(now, msg.value/(1 ether));
+
+   emit Recieved(now, msg.value/(1 ether));
   
     uint add_number = target_addresses.length;
     if (add_number>0) {
@@ -155,3 +156,17 @@ contract dispatch is owned {
     
   }
 }
+
+
+
+
+
+------------------------
+dispatch contract
+
+
+
+[ { "constant": true, "inputs": [ { "name": "_user", "type": "address" } ], "name": "isOwner", "outputs": [ { "name": "", "type": "bool", "value": false } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "_amount", "type": "uint256" } ], "name": "repay", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": false, "inputs": [ { "name": "newTarget", "type": "address" } ], "name": "addTarget", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [], "name": "owner", "outputs": [ { "name": "", "type": "address", "value": "0x4868db83bcf1a129eac577d4d1ad0fd5676176c6" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": true, "inputs": [], "name": "targetCount", "outputs": [ { "name": "", "type": "uint256", "value": "0" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "target", "type": "address" } ], "name": "removeTarget", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "constant": true, "inputs": [ { "name": "index", "type": "uint256" } ], "name": "getTarget", "outputs": [ { "name": "target", "type": "address", "value": "0x" } ], "payable": false, "stateMutability": "view", "type": "function" }, { "constant": false, "inputs": [ { "name": "newOwner", "type": "address" } ], "name": "transferOwnership", "outputs": [], "payable": false, "stateMutability": "nonpayable", "type": "function" }, { "payable": true, "stateMutability": "payable", "type": "fallback" }, { "anonymous": false, "inputs": [ { "indexed": false, "name": "time", "type": "uint256" }, { "indexed": false, "name": "target", "type": "address" } ], "name": "UnableToDispatchTo", "type": "event" } ]
+
+
+
