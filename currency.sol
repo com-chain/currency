@@ -27,7 +27,7 @@ Configuration:
 contract owned {
   address public owner;
 
-   function owned() public{
+   constructor() public{
     owner = msg.sender;
   }
   
@@ -50,7 +50,7 @@ contract _template_ is owned {
   /* Name and symbol (for ComChain internal use) */
   string  public standard       = '_template_';
   string  public name           = "_name_";
-  string  public symbol         = "_symbol_";
+  string  public symbol         = "_symbol_"; 
   
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
@@ -248,11 +248,11 @@ contract _template_ is owned {
     
     // Prevent changing the Type of an Admin (2) account
     if (accountType[_targetAccount] != 2){
-        accountType[_targetAccount] = _accountType;
         limitDebit[_targetAccount] = _debitLimit;
         limitCredit[_targetAccount] = _creditLimit;
         
     }
+    accountType[_targetAccount] = _accountType;
     
     emit SetAccountParams(now, _targetAccount, _accountStatus, accountType[_targetAccount], limitDebit[_targetAccount],  limitCredit[_targetAccount]);
     
@@ -861,6 +861,7 @@ contract _template_ is owned {
     }
   }
 }
+
 
 
 
