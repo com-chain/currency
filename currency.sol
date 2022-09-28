@@ -76,7 +76,7 @@ contract _template_ is owned {
   bool firstAdmin              = true;
 
   /* Account property: */
-  mapping (address => int256) public accountType;               // Account type 2 = special account 1 = Business 0 = Personal
+  mapping (address => int256) public accountType;               // Account type 4 = Property Admin, 3 = Pledge Admin, 2 = Super Admin, 1 = Business, 0 = Personal
   mapping (address => bool) public accountStatus;               // Account status
   mapping (address => int256) public balanceEL;                 // Balance in coins
   mapping (address => int256) public balanceCM;                 // Balance in Mutual credit
@@ -138,7 +138,7 @@ contract _template_ is owned {
     setFirstAdmin();
   }
   
-  /* INTERNAL - Set the first admin and ensure that this account is of the good type and actif.*/
+  /* INTERNAL - Set the first super admin (2) and ensure that this account is of the good type and actif.*/
   function setFirstAdmin() internal {
     if (firstAdmin == false) revert();
     accountType[owner] = 2;
@@ -239,14 +239,14 @@ contract _template_ is owned {
   /* Change account's property */  
   function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
   
-    // Ensure that the sender is an admin and is not blocked
+    // Ensure that the sender is an a super admin or a property admin, and is not blocked
     if (msg.sender!=owner){
-        if (accountType[msg.sender] < 2  || !accountStatus[msg.sender]) revert();
+        if (accountType[msg.sender] < 2  || accountType[msg.sender] == 3 || !accountStatus[msg.sender]) revert();
     }
     
     accountStatus[_targetAccount] = _accountStatus;
     
-    // Prevent changing the Type of an Admin (2) account
+    // Prevent changing the Type of a super Admin (2) account
     if (accountType[_targetAccount] != 2){
         limitDebit[_targetAccount] = _debitLimit;
         limitCredit[_targetAccount] = _creditLimit;
@@ -265,10 +265,10 @@ contract _template_ is owned {
   /****** Coin and Barter transfert *******/ 
   /* Coin creation (Nantissement) */
   function pledge(address _to, int256 _value)  public {
-    if (accountType[msg.sender] < 2) revert();                                  // Check that only Special Accounts (2) can pledge
+    if (accountType[msg.sender] < 2 || accountType[msg.sender] > 3) revert();   // Check that only super admin (2) or pledge admin (3) can pledge
     if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
-    if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
-    // if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
+    // if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
+    if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
     balanceEL[_to] += _value;                                                   // Add the amount to the recipient
     amountPledged += _value;                                                    // and to the Money supply
     
