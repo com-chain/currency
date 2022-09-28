@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity  >=0.4.18 <0.4.23;
 
 /********************************************************
 
@@ -130,7 +130,7 @@ contract _template_ is owned {
   event Rejection(uint256 time, address indexed from, address indexed to, int256 value);
   
   /* Account being replaced by a new one */
-  event AccountReplaced(uint256 time, address indexed oldAdd, address indexed newAdd, bool indexed accstatus);
+  event AccountReplaced(uint256 time, address indexed oldAdd, address indexed newAdd, int256 indexed accstatus);
 
   /****************************************************************************/ 
   /***** Contract creation *******/
@@ -269,7 +269,7 @@ contract _template_ is owned {
   }
   
   /* replace the current account by a new one transfering its content */
-  function replaceAccount(address _replacementAccount) {
+  function replaceAccount(address _replacementAccount) public {
      if (!actif) revert();                                                      // panic lock
      if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
      if (!accountStatus[msg.sender]) revert();                                  // locked account cannot be replaced
@@ -309,9 +309,9 @@ contract _template_ is owned {
         } 
      }
      // transfert the allowance to the replaced account
-     for (uint index=0; index < myAllowMap[msg.sender].length; index++) {
+     for (index=0; index < myAllowMap[msg.sender].length; index++) {
         address allower = myAllowMap[msg.sender][index];
-        int256 amount = myAllowed[msg.sender][allower];
+        amount = myAllowed[msg.sender][allower];
         if (amount > 0) {
             allowMap[allower].push(_replacementAccount);
             myAllowMap[_replacementAccount].push(allower);
@@ -323,23 +323,23 @@ contract _template_ is owned {
      }
   
      // transfert the autorization from the replaced account
-      for (uint index=0; index<delegMap[msg.sender].length; index++) {
+      for (index=0; index<delegMap[msg.sender].length; index++) {
         address delegate = delegMap[msg.sender][index];
-        int256 amount = delegated[msg.sender][delegate];
+        amount = delegated[msg.sender][delegate];
         if (amount > 0) {
             delegMap[_replacementAccount].push(delegate);
             myDelegMap[delegate].push(_replacementAccount);
             delegated[_replacementAccount][delegate] = amount;
             delegated[msg.sender][delegate] = 0;
-            myDelegMap[delegate][_replacementAccount] = amount;
-            myDelegMap[delegate][msg.sender] = 0;
+            myDelegated[delegate][_replacementAccount] = amount;
+            myDelegated[delegate][msg.sender] = 0;
         } 
      }
      
      // transfert the autorization to the replaced account
-     for (uint index=0; index < myDelegMap[msg.sender].length; index++) {
+     for (index=0; index < myDelegMap[msg.sender].length; index++) {
         address delegetor = myDelegMap[msg.sender][index];
-        int256 amount = myDelegated[msg.sender][delegetor];
+        amount = myDelegated[msg.sender][delegetor];
         if (amount > 0) {
             delegMap[delegetor].push(_replacementAccount);
             myDelegMap[_replacementAccount].push(delegetor);
@@ -351,9 +351,9 @@ contract _template_ is owned {
      }
      
      // transfert the payment requet made by the replaced account
-     for (uint index=0; index<reqMap[msg.sender].length; index++) {
+     for (index=0; index<reqMap[msg.sender].length; index++) {
         address debitor = reqMap[msg.sender][index];
-        int256 amount = requested[msg.sender][debitor];
+        amount = requested[msg.sender][debitor];
         if (amount > 0) {
             reqMap[_replacementAccount].push(debitor);
             myReqMap[debitor].push(_replacementAccount);
@@ -364,9 +364,9 @@ contract _template_ is owned {
         } 
      }
      // transfert the payment requet made to the replaced account
-     for (uint index=0; index < myReqMap[msg.sender].length; index++) {
+     for (index=0; index < myReqMap[msg.sender].length; index++) {
         address requestor = myReqMap[msg.sender][index];
-        int256 amount = myRequested[msg.sender][requestor];
+        amount = myRequested[msg.sender][requestor];
         if (amount > 0) {
             reqMap[requestor].push(_replacementAccount);
             myReqMap[_replacementAccount].push(requestor);
