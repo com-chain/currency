@@ -82,6 +82,7 @@ contract _template_ is owned {
   mapping (address => int256) public balanceCM;                 // Balance in Mutual credit
   mapping (address => int256) public limitCredit;               // Min limit (minimal accepted CM amount expected to be 0 or <0 )
   mapping (address => int256) public limitDebit;                // Max limit  (maximal accepted CM amount expected to be 0 or >0 )
+  mapping (address => address) public newAddress;               // Address which replaces the current one
   
   /* Allowance, Authorization and Request:*/
   
@@ -127,6 +128,9 @@ contract _template_ is owned {
   event Delegation(uint256 time, address indexed from, address indexed to, int256 value);
   
   event Rejection(uint256 time, address indexed from, address indexed to, int256 value);
+  
+  /* Account being replaced by a new one */
+  event AccountReplaced(uint256 time, address indexed oldAdd, address indexed newAdd, bool indexed accstatus);
 
   /****************************************************************************/ 
   /***** Contract creation *******/
@@ -244,6 +248,9 @@ contract _template_ is owned {
         if (accountType[msg.sender] < 2  || accountType[msg.sender] == 3 || !accountStatus[msg.sender]) revert();
     }
     
+    // Replaced account cannot be modified
+    if (newAddress[_targetAccount]!=address(0)) revert();
+    
     accountStatus[_targetAccount] = _accountStatus;
     
     // Prevent changing the Type of a super Admin (2) account
@@ -261,6 +268,123 @@ contract _template_ is owned {
     topUp(msg.sender);
   }
   
+  /* replace the current account by a new one transfering its content */
+  function replaceAccount(address _replacementAccount) {
+     if (!actif) revert();                                                      // panic lock
+     if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
+     if (!accountStatus[msg.sender]) revert();                                  // locked account cannot be replaced
+     
+     // transfert the type (and ownership if needed)
+     accountStatus[_replacementAccount] = true;
+     if (msg.sender == owner) {
+        accountType[_replacementAccount] = 2;
+        owner = _replacementAccount;
+     } else {
+        accountType[_replacementAccount] = accountType[msg.sender]; 
+     }
+     
+     // transfert the values and limit
+     balanceEL[_replacementAccount] = balanceEL[msg.sender];
+     balanceEL[msg.sender] = 0;
+     balanceCM[_replacementAccount] = balanceCM[msg.sender];
+     balanceCM[msg.sender] = 0;
+     limitCredit[_replacementAccount] = limitCredit[msg.sender];
+     limitCredit[msg.sender] = 0;
+     limitDebit[_replacementAccount] = limitDebit[msg.sender];
+     limitDebit[msg.sender] = 0;
+     
+     
+     
+     // transfert the allowance from the replaced account
+     for (uint index=0; index<allowMap[msg.sender].length; index++) {
+        address spender = allowMap[msg.sender][index];
+        int256 amount = allowed[msg.sender][spender];
+        if (amount > 0) {
+            allowMap[_replacementAccount].push(spender);
+            myAllowMap[spender].push(_replacementAccount);
+            allowed[_replacementAccount][spender] = amount;
+            allowed[msg.sender][spender] = 0;
+            myAllowed[spender][_replacementAccount] = amount;
+            myAllowed[spender][msg.sender] = 0;
+        } 
+     }
+     // transfert the allowance to the replaced account
+     for (uint index=0; index < myAllowMap[msg.sender].length; index++) {
+        address allower = myAllowMap[msg.sender][index];
+        int256 amount = myAllowed[msg.sender][allower];
+        if (amount > 0) {
+            allowMap[allower].push(_replacementAccount);
+            myAllowMap[_replacementAccount].push(allower);
+            allowed[allower][_replacementAccount] = amount;
+            allowed[allower][msg.sender] = 0;
+            myAllowed[_replacementAccount][allower] = amount;
+            myAllowed[msg.sender][allower] = 0;
+        } 
+     }
+  
+     // transfert the autorization from the replaced account
+      for (uint index=0; index<delegMap[msg.sender].length; index++) {
+        address delegate = delegMap[msg.sender][index];
+        int256 amount = delegated[msg.sender][delegate];
+        if (amount > 0) {
+            delegMap[_replacementAccount].push(delegate);
+            myDelegMap[delegate].push(_replacementAccount);
+            delegated[_replacementAccount][delegate] = amount;
+            delegated[msg.sender][delegate] = 0;
+            myDelegMap[delegate][_replacementAccount] = amount;
+            myDelegMap[delegate][msg.sender] = 0;
+        } 
+     }
+     
+     // transfert the autorization to the replaced account
+     for (uint index=0; index < myDelegMap[msg.sender].length; index++) {
+        address delegetor = myDelegMap[msg.sender][index];
+        int256 amount = myDelegated[msg.sender][delegetor];
+        if (amount > 0) {
+            delegMap[delegetor].push(_replacementAccount);
+            myDelegMap[_replacementAccount].push(delegetor);
+            delegated[delegetor][_replacementAccount] = amount;
+            delegated[delegetor][msg.sender] = 0;
+            myDelegated[_replacementAccount][delegetor] = amount;
+            myDelegated[msg.sender][delegetor] = 0;
+        } 
+     }
+     
+     // transfert the payment requet made by the replaced account
+     for (uint index=0; index<reqMap[msg.sender].length; index++) {
+        address debitor = reqMap[msg.sender][index];
+        int256 amount = requested[msg.sender][debitor];
+        if (amount > 0) {
+            reqMap[_replacementAccount].push(debitor);
+            myReqMap[debitor].push(_replacementAccount);
+            requested[_replacementAccount][debitor] = amount;
+            requested[msg.sender][debitor] = 0;
+            myRequested[debitor][_replacementAccount] = amount;
+            myRequested[debitor][msg.sender] = 0;
+        } 
+     }
+     // transfert the payment requet made to the replaced account
+     for (uint index=0; index < myReqMap[msg.sender].length; index++) {
+        address requestor = myReqMap[msg.sender][index];
+        int256 amount = myRequested[msg.sender][requestor];
+        if (amount > 0) {
+            reqMap[requestor].push(_replacementAccount);
+            myReqMap[_replacementAccount].push(requestor);
+            requested[requestor][_replacementAccount] = amount;
+            requested[requestor][msg.sender] = 0;
+            myRequested[_replacementAccount][requestor] = amount;
+            myRequested[msg.sender][requestor] = 0;
+        } 
+     }
+     
+     // NOTE: Already payed or rejected payment request are not transfered!
+     
+     // lock the old account and emit event
+     newAddress[msg.sender] = _replacementAccount;
+     accountStatus[msg.sender] = false;
+     emit AccountReplaced(now, msg.sender, _replacementAccount, accountType[msg.sender]);
+  }
+  
  
   /****** Coin and Barter transfert *******/ 
   /* Coin creation (Nantissement) */
@@ -269,6 +393,7 @@ contract _template_ is owned {
     if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
     // if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
     if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
+    if (newAddress[_to]!=address(0)) revert();                                  // Replaced account cannot be pledged
     balanceEL[_to] += _value;                                                   // Add the amount to the recipient
     amountPledged += _value;                                                    // and to the Money supply
     
