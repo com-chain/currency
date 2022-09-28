@@ -67,7 +67,7 @@ contract _template_ is owned {
   /* For this it define the limit bellow which ether is added to the account */
   uint256 minBalanceForAccounts = 1000000000000000000;  
   /* And the number of ether to be added */  
-  uint256 public refillSupply   = 10;
+  uint256 public refillSupply   = 2;
   
   /* Panic button: allows to block any currency transfert */
   bool public actif            = true;
