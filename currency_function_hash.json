@@ -83,5 +83,8 @@
 	"74c421fe": "transferCMOnBehalfOf(address,address,int256)",
 	"1b6b1ee5": "transferOnBehalfOf(address,address,int256)",
 	"f2fde38b": "transferOwnership(address)",
-	"4f2eabe0": "txAddr()"
+	"4f2eabe0": "txAddr()",
+	"54fd4d50": "version()"
 }
+
+

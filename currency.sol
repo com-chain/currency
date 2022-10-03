@@ -45,13 +45,13 @@ contract owned {
 /***********************************************
   Main contract. 
 ***********************************************/
-contract _template_ is owned {
+contract cccur is owned {
 
   /* Name and symbol (for ComChain internal use) */
-  string  public standard       = '_template_';
-  string  public name           = "_name_";
-  string  public symbol         = "_symbol_"; 
-  
+  string  public name           = "";
+  string  public symbol         = ""; 
+  string  public version        = "2.0";
+
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
   
@@ -135,10 +135,10 @@ contract _template_ is owned {
   /****************************************************************************/ 
   /***** Contract creation *******/
   /* Initializes contract */
-   constructor(address taxAddress, int8 taxPercent, int8 taxPercentLeg) public {
-    txAddr = taxAddress;
-    percent = taxPercent;
-    percentLeg = taxPercentLeg;
+   constructor(string _name, string _symbol) public {
+    txAddr = msg.sender;
+    name = _name;
+    symbol = _symbol;
     setFirstAdmin();
   }
   
@@ -269,6 +269,7 @@ contract _template_ is owned {
   }
   
   /* replace the current account by a new one transfering its content */
+  
   function replaceAccount(address _replacementAccount) public {
      if (!actif) revert();                                                      // panic lock
      if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
@@ -294,7 +295,7 @@ contract _template_ is owned {
      limitDebit[msg.sender] = 0;
      
      
-     
+   
      // transfert the allowance from the replaced account
      for (uint index=0; index<allowMap[msg.sender].length; index++) {
         address spender = allowMap[msg.sender][index];
