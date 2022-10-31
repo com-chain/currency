@@ -65,9 +65,9 @@ contract cccur is owned {
 
   /* Ensure that the accounts have enough ether to pass transactions */
   /* For this it define the limit bellow which ether is added to the account */
-  uint256 minBalanceForAccounts = 1000000000000000000;  
+  uint256 minBalanceForAccounts = 100000000000000000;  
   /* And the number of ether to be added */  
-  uint256 public refillSupply   = 2;
+  uint256 public refillSupply   = 1;
   
   /* Panic button: allows to block any currency transfert */
   bool public actif            = true;
@@ -77,11 +77,15 @@ contract cccur is owned {
 
   /* Account property: */
   mapping (address => int256) public accountType;               // Account type 4 = Property Admin, 3 = Pledge Admin, 2 = Super Admin, 1 = Business, 0 = Personal
-  mapping (address => bool) public accountStatus;               // Account status
+  mapping (address => bool) public accountStatus;               // Account status 
+  mapping (address => bool) public accountAlreadyUsed;          // if False the account is new
   mapping (address => int256) public balanceEL;                 // Balance in coins
   mapping (address => int256) public balanceCM;                 // Balance in Mutual credit
   mapping (address => int256) public limitCredit;               // Min limit (minimal accepted CM amount expected to be 0 or <0 )
   mapping (address => int256) public limitDebit;                // Max limit  (maximal accepted CM amount expected to be 0 or >0 )
+  mapping (address => int256) public ReplacementRequestNumber;  // Count the replacement request for a given account
+  mapping (address => address) public requestReplacementFrom;   // Pending replacement request the key is the Account to be replaced
+  mapping (address => address) public requestReplacementTo;     // Pending replacement request the key is the target Account
   mapping (address => address) public newAddress;               // Address which replaces the current one
   
   /* Allowance, Authorization and Request:*/
@@ -239,6 +243,27 @@ contract cccur is owned {
   function balanceOf(address _from) public constant returns (int256 amount){
      return  balanceEL[_from] + balanceCM[_from];
   }
+
+  /* change the accountAlreadyUsed */
+  function use(address add) internal {
+    accountAlreadyUsed[add] = true;
+    if (requestReplacementTo[add]!=address(0)) {
+       requestReplacementFrom[requestReplacementTo[add]]=address(0);
+       requestReplacementTo[add]=address(0);
+    }
+  }   
+
+  function resetReplacementRequestNumber(address account) public {
+     if (msg.sender!=owner){
+        if (accountType[msg.sender] != 2  && accountType[msg.sender] != 3 ) revert();
+    }
+    ReplacementRequestNumber[account] = 0;
+
+    // ensure the ETH level of the account
+    refill();
+    topUp(account);
+  }  
+
   
   /* Change account's property */  
   function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
@@ -256,134 +281,176 @@ contract cccur is owned {
     // Prevent changing the Type of a super Admin (2) account
     if (accountType[_targetAccount] != 2){
         limitDebit[_targetAccount] = _debitLimit;
-        limitCredit[_targetAccount] = _creditLimit;
-        
+        limitCredit[_targetAccount] = _creditLimit;   
     }
+
     accountType[_targetAccount] = _accountType;
+    use(_targetAccount);
     
     emit SetAccountParams(now, _targetAccount, _accountStatus, accountType[_targetAccount], limitDebit[_targetAccount],  limitCredit[_targetAccount]);
     
     // ensure the ETH level of the account
+    refill();
     topUp(_targetAccount);
-    topUp(msg.sender);
   }
-  
-  /* replace the current account by a new one transfering its content */
-  
-  function replaceAccount(address _replacementAccount) public {
+
+  function AllowReplaceBy(address target) public payable {
      if (!actif) revert();                                                      // panic lock
      if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
      if (!accountStatus[msg.sender]) revert();                                  // locked account cannot be replaced
+     if (accountAlreadyUsed[target]==true) revert();                            // only new account can be a replacement target
+     if (ReplacementRequestNumber[msg.sender]>2) revert();                      // limit the number of replacement request possible
+
+     if (requestReplacementTo[target]!=address(0)) {                            // Cancel replacement request if exists
+       requestReplacementFrom[requestReplacementTo[target]]=address(0);
+       requestReplacementTo[target]=address(0);
+     }
+
+     if (requestReplacementFrom[msg.sender]!=address(0)) {                      // Cancel replacement request if exists
+       requestReplacementTo[requestReplacementFrom[msg.sender]]=address(0);
+       requestReplacementFrom[target]=address(0);
+     }
+
+     requestReplacementFrom[target]=msg.sender;                                // register the request   
+     requestReplacementTo[msg.sender]=target;
+     
+     ReplacementRequestNumber[msg.sender]+=1;
+     topUp(target);                                                            // ensure targuet has eth to accept the request
+  } 
+
+  function CancelReplaceBy() public  {
+     if (!actif) revert();                                                      // panic lock
+     if (requestReplacementFrom[msg.sender]!=address(0)) {                      // Cancel replacement request if exists
+       requestReplacementTo[requestReplacementFrom[msg.sender]]=address(0);
+       requestReplacementFrom[msg.sender]=address(0);
+       refill();  
+     }
+
+  }
+  
+  
+  /* replace the current account by a new one transfering its content */
+  
+  function AcceptReplaceAccount() public {
+     if (!actif) revert();                                                      // panic lock
+     if (accountAlreadyUsed[msg.sender]==true) revert();                        // only new account can be a replacement target
+    
+     if (requestReplacementTo[msg.sender]==address(0)) revert();                // only existing request can be treated
+     address original_account = requestReplacementTo[msg.sender];
+
+     if (newAddress[original_account]!=address(0)) revert();                     // Already replaced account cannot be replaced again
+     if (!accountStatus[original_account]) revert();                             // locked account cannot be replaced
      
      // transfert the type (and ownership if needed)
-     accountStatus[_replacementAccount] = true;
-     if (msg.sender == owner) {
-        accountType[_replacementAccount] = 2;
-        owner = _replacementAccount;
+     use(msg.sender);
+     accountStatus[msg.sender] = true;
+     if (original_account == owner) {                                            // if the replaced account is the contract owner transfert the priviledge
+        accountType[msg.sender] = 2;
+        owner = msg.sender;
      } else {
-        accountType[_replacementAccount] = accountType[msg.sender]; 
+        accountType[msg.sender] = accountType[original_account]; 
      }
      
      // transfert the values and limit
-     balanceEL[_replacementAccount] = balanceEL[msg.sender];
-     balanceEL[msg.sender] = 0;
-     balanceCM[_replacementAccount] = balanceCM[msg.sender];
-     balanceCM[msg.sender] = 0;
-     limitCredit[_replacementAccount] = limitCredit[msg.sender];
-     limitCredit[msg.sender] = 0;
-     limitDebit[_replacementAccount] = limitDebit[msg.sender];
-     limitDebit[msg.sender] = 0;
+     balanceEL[msg.sender] = balanceEL[original_account];
+     balanceEL[original_account] = 0;
+     balanceCM[msg.sender] = balanceCM[original_account];
+     balanceCM[original_account] = 0;
+     limitCredit[msg.sender] = limitCredit[original_account];
+     limitCredit[original_account] = 0;
+     limitDebit[msg.sender] = limitDebit[original_account];
+     limitDebit[original_account] = 0;
      
      
    
      // transfert the allowance from the replaced account
-     for (uint index=0; index<allowMap[msg.sender].length; index++) {
-        address spender = allowMap[msg.sender][index];
-        int256 amount = allowed[msg.sender][spender];
+     for (uint index=0; index<allowMap[original_account].length; index++) {
+        address spender = allowMap[original_account][index];
+        int256 amount = allowed[original_account][spender];
         if (amount > 0) {
-            allowMap[_replacementAccount].push(spender);
-            myAllowMap[spender].push(_replacementAccount);
-            allowed[_replacementAccount][spender] = amount;
-            allowed[msg.sender][spender] = 0;
-            myAllowed[spender][_replacementAccount] = amount;
-            myAllowed[spender][msg.sender] = 0;
+            allowMap[msg.sender].push(spender);
+            myAllowMap[spender].push(msg.sender);
+            allowed[msg.sender][spender] = amount;
+            allowed[original_account][spender] = 0;
+            myAllowed[spender][msg.sender] = amount;
+            myAllowed[spender][original_account] = 0;
         } 
      }
      // transfert the allowance to the replaced account
-     for (index=0; index < myAllowMap[msg.sender].length; index++) {
-        address allower = myAllowMap[msg.sender][index];
-        amount = myAllowed[msg.sender][allower];
+     for (index=0; index < myAllowMap[original_account].length; index++) {
+        address allower = myAllowMap[original_account][index];
+        amount = myAllowed[original_account][allower];
         if (amount > 0) {
-            allowMap[allower].push(_replacementAccount);
-            myAllowMap[_replacementAccount].push(allower);
-            allowed[allower][_replacementAccount] = amount;
-            allowed[allower][msg.sender] = 0;
-            myAllowed[_replacementAccount][allower] = amount;
-            myAllowed[msg.sender][allower] = 0;
+            allowMap[allower].push(msg.sender);
+            myAllowMap[msg.sender].push(allower);
+            allowed[allower][msg.sender] = amount;
+            allowed[allower][original_account] = 0;
+            myAllowed[msg.sender][allower] = amount;
+            myAllowed[original_account][allower] = 0;
         } 
      }
   
      // transfert the autorization from the replaced account
-      for (index=0; index<delegMap[msg.sender].length; index++) {
-        address delegate = delegMap[msg.sender][index];
-        amount = delegated[msg.sender][delegate];
+      for (index=0; index<delegMap[original_account].length; index++) {
+        address delegate = delegMap[original_account][index];
+        amount = delegated[original_account][delegate];
         if (amount > 0) {
-            delegMap[_replacementAccount].push(delegate);
-            myDelegMap[delegate].push(_replacementAccount);
-            delegated[_replacementAccount][delegate] = amount;
-            delegated[msg.sender][delegate] = 0;
-            myDelegated[delegate][_replacementAccount] = amount;
-            myDelegated[delegate][msg.sender] = 0;
+            delegMap[msg.sender].push(delegate);
+            myDelegMap[delegate].push(msg.sender);
+            delegated[msg.sender][delegate] = amount;
+            delegated[original_account][delegate] = 0;
+            myDelegated[delegate][msg.sender] = amount;
+            myDelegated[delegate][original_account] = 0;
         } 
      }
      
      // transfert the autorization to the replaced account
-     for (index=0; index < myDelegMap[msg.sender].length; index++) {
-        address delegetor = myDelegMap[msg.sender][index];
-        amount = myDelegated[msg.sender][delegetor];
+     for (index=0; index < myDelegMap[original_account].length; index++) {
+        address delegetor = myDelegMap[original_account][index];
+        amount = myDelegated[original_account][delegetor];
         if (amount > 0) {
-            delegMap[delegetor].push(_replacementAccount);
-            myDelegMap[_replacementAccount].push(delegetor);
-            delegated[delegetor][_replacementAccount] = amount;
-            delegated[delegetor][msg.sender] = 0;
-            myDelegated[_replacementAccount][delegetor] = amount;
-            myDelegated[msg.sender][delegetor] = 0;
+            delegMap[delegetor].push(msg.sender);
+            myDelegMap[msg.sender].push(delegetor);
+            delegated[delegetor][msg.sender] = amount;
+            delegated[delegetor][original_account] = 0;
+            myDelegated[msg.sender][delegetor] = amount;
+            myDelegated[original_account][delegetor] = 0;
         } 
      }
      
      // transfert the payment requet made by the replaced account
-     for (index=0; index<reqMap[msg.sender].length; index++) {
-        address debitor = reqMap[msg.sender][index];
-        amount = requested[msg.sender][debitor];
+     for (index=0; index<reqMap[original_account].length; index++) {
+        address debitor = reqMap[original_account][index];
+        amount = requested[original_account][debitor];
         if (amount > 0) {
-            reqMap[_replacementAccount].push(debitor);
-            myReqMap[debitor].push(_replacementAccount);
-            requested[_replacementAccount][debitor] = amount;
-            requested[msg.sender][debitor] = 0;
-            myRequested[debitor][_replacementAccount] = amount;
-            myRequested[debitor][msg.sender] = 0;
+            reqMap[msg.sender].push(debitor);
+            myReqMap[debitor].push(msg.sender);
+            requested[msg.sender][debitor] = amount;
+            requested[original_account][debitor] = 0;
+            myRequested[debitor][msg.sender] = amount;
+            myRequested[debitor][original_account] = 0;
         } 
      }
      // transfert the payment requet made to the replaced account
-     for (index=0; index < myReqMap[msg.sender].length; index++) {
-        address requestor = myReqMap[msg.sender][index];
-        amount = myRequested[msg.sender][requestor];
+     for (index=0; index < myReqMap[original_account].length; index++) {
+        address requestor = myReqMap[original_account][index];
+        amount = myRequested[original_account][requestor];
         if (amount > 0) {
-            reqMap[requestor].push(_replacementAccount);
-            myReqMap[_replacementAccount].push(requestor);
-            requested[requestor][_replacementAccount] = amount;
-            requested[requestor][msg.sender] = 0;
-            myRequested[_replacementAccount][requestor] = amount;
-            myRequested[msg.sender][requestor] = 0;
+            reqMap[requestor].push(msg.sender);
+            myReqMap[msg.sender].push(requestor);
+            requested[requestor][msg.sender] = amount;
+            requested[requestor][original_account] = 0;
+            myRequested[msg.sender][requestor] = amount;
+            myRequested[original_account][requestor] = 0;
         } 
      }
      
      // NOTE: Already payed or rejected payment request are not transfered!
      
      // lock the old account and emit event
-     newAddress[msg.sender] = _replacementAccount;
-     accountStatus[msg.sender] = false;
-     emit AccountReplaced(now, msg.sender, _replacementAccount, accountType[msg.sender]);
+     newAddress[original_account] = msg.sender;
+     accountStatus[original_account] = false;
+     emit AccountReplaced(now, original_account, msg.sender, accountType[msg.sender]);
   }
   
  
@@ -394,14 +461,15 @@ contract cccur is owned {
     if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
     // if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
     if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
-    if (newAddress[_to]!=address(0)) revert();                                  // Replaced account cannot be pledged
+   // if (newAddress[_to]!=address(0)) revert();                                  // Replaced account cannot be pledged
     balanceEL[_to] += _value;                                                   // Add the amount to the recipient
     amountPledged += _value;                                                    // and to the Money supply
-    
+    use(_to);
+
     emit Pledge(now, _to, _value);
     // ensure the ETH level of the account
+    refill();
     topUp(_to);
-    topUp(msg.sender);
   }
   
   
@@ -482,7 +550,8 @@ contract cccur is owned {
     balanceEL[_from] -= amount + tax;         // Subtract from the sender
     balanceEL[_to] += amount;    
     balanceEL[txAddr] += tax;
-     
+
+    use(_to);
     emit Transfer(now, _from, _to, amount+tax, tax, amount);        // Notify anyone listening that this transfer took place
     // ensure the ETH level of the account
     topUp(_to);
@@ -515,6 +584,7 @@ contract cccur is owned {
     balanceCM[_to] += amount;    
     balanceCM[txAddr] += tax;
     
+    use(_to);
     emit TransferCredit(now, _from, _to, amount+tax, tax, amount);  // Notify anyone listening that this transfer took place
     // ensure the ETH level of the account
     topUp(_to);
@@ -608,7 +678,9 @@ contract cccur is owned {
         }
     }
     emit Approval(now, msg.sender, _spender, _amount);
-    topUp(msg.sender);
+    use(_spender);
+    use(msg.sender);
+    refill();
     topUp(_spender);
     return true;
   }
@@ -716,8 +788,7 @@ contract cccur is owned {
         
         
     }
-    topUp(msg.sender);
-    topUp(_spender);
+    refill();
     emit Delegation(now, msg.sender, _spender, _amount);
   }
   
