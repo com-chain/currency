@@ -45,7 +45,7 @@ contract owned {
 /***********************************************
   Main contract. 
 ***********************************************/
-contract cccur is owned {
+contract _template_ is owned {
 
   /* Name and symbol (for ComChain internal use) */
   string  public name           = "";
@@ -54,6 +54,8 @@ contract cccur is owned {
 
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
+
+  bool public AutomaticUnlock = false;
   
   /* Tax on the transactions  */
   /*    payed to "Person" (0) account  */
@@ -171,6 +173,11 @@ contract cccur is owned {
     accountStatus[newOwner] = true;
     owner = newOwner;
   }
+
+  /* Manage the Automatic Unlock */
+  function setAutomaticUnlock(bool new_auto_unlock) public onlyOwner {
+    AutomaticUnlock = new_auto_unlock;
+  }
   
   /* Set the threshold to refill an account (in ETH)*/
   function setRefillLimit(uint256 _minimumBalance) public onlyOwner {
@@ -244,9 +251,25 @@ contract cccur is owned {
      return  balanceEL[_from] + balanceCM[_from];
   }
 
+  function IsActive(address target) internal constant returns (bool result) {
+    if (accountStatus[target]) {
+      return true;
+    } else if (AutomaticUnlock && !accountAlreadyUsed[target]) {
+      return true;
+    } else {
+      return false;
+    }
+  } 
+
   /* change the accountAlreadyUsed */
   function use(address add) internal {
+    // unlock if needed
+    if (AutomaticUnlock && !accountAlreadyUsed[add]) {
+      accountStatus[add] = true;
+    }
+
     accountAlreadyUsed[add] = true;
+
     if (requestReplacementTo[add]!=address(0)) {
        requestReplacementFrom[requestReplacementTo[add]]=address(0);
        requestReplacementTo[add]=address(0);
@@ -284,7 +307,10 @@ contract cccur is owned {
         limitCredit[_targetAccount] = _creditLimit;   
     }
 
-    accountType[_targetAccount] = _accountType;
+    if (_targetAccount!=owner) {
+        accountType[_targetAccount] = _accountType;
+    }
+    
     use(_targetAccount);
     
     emit SetAccountParams(now, _targetAccount, _accountStatus, accountType[_targetAccount], limitDebit[_targetAccount],  limitCredit[_targetAccount]);
@@ -297,7 +323,7 @@ contract cccur is owned {
   function AllowReplaceBy(address target) public payable {
      if (!actif) revert();                                                      // panic lock
      if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
-     if (!accountStatus[msg.sender]) revert();                                  // locked account cannot be replaced
+     if (!IsActive(msg.sender)) revert();                                       // locked account cannot be replaced
      if (accountAlreadyUsed[target]==true) revert();                            // only new account can be a replacement target
      if (ReplacementRequestNumber[msg.sender]>2) revert();                      // limit the number of replacement request possible
 
@@ -339,7 +365,7 @@ contract cccur is owned {
      address original_account = requestReplacementTo[msg.sender];
 
      if (newAddress[original_account]!=address(0)) revert();                     // Already replaced account cannot be replaced again
-     if (!accountStatus[original_account]) revert();                             // locked account cannot be replaced
+     if (!IsActive(original_account)) revert();                                  // locked account cannot be replaced
      
      // transfert the type (and ownership if needed)
      use(msg.sender);
@@ -458,7 +484,7 @@ contract cccur is owned {
   /* Coin creation (Nantissement) */
   function pledge(address _to, int256 _value)  public {
     if (accountType[msg.sender] < 2 || accountType[msg.sender] > 3) revert();   // Check that only super admin (2) or pledge admin (3) can pledge
-    if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
+    if (!IsActive(msg.sender)) revert();                                         // Check that only non-blocked account can pledge
     // if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
     if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
    // if (newAddress[_to]!=address(0)) revert();                                  // Replaced account cannot be pledged
@@ -530,8 +556,9 @@ contract cccur is owned {
   /* INTERNAL - Coin transfert  */
   function payNant(address _from,address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
-    if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
-    if (!accountStatus[_to]) revert();
+
+    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
+    if (!IsActive(_to)) revert();
     
     // compute the tax
     int16 tax_percent = percent;
@@ -561,8 +588,8 @@ contract cccur is owned {
   /* INTERNAL - Mutual Credit (Barter) transfert  */
   function payCM(address _from, address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
-    if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
-    if (!accountStatus[_to]) revert();
+    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
+    if (!IsActive(_to)) revert();
     
     // compute the tax
     int16 tax_percent = percent;
@@ -628,7 +655,9 @@ contract cccur is owned {
   /* Allow _spender to withdraw from your account, multiple times, up to the _value amount.  */
   /* If called again the _amount is added to the allowance, if amount is negatif the allowance is deleted  */
   function approve(address _spender, int256 _amount) public returns (bool success) {
-    if (!accountStatus[msg.sender]) revert(); // Check the sender not to be blocked
+    if (!IsActive(msg.sender)) revert();  // Check the sender not to be blocked
+
+   
     if (_amount>=0){
         if ( allowed[msg.sender][_spender] == 0 ) {
             allowMap[msg.sender].push(_spender);
@@ -687,8 +716,8 @@ contract cccur is owned {
   
   /* INTERNAL - Allow the spender to decrasse the allowance */
   function updateAllowed(address _from, address _to, int256 _value) internal {
-    if (!accountStatus[msg.sender]) revert();       // Ensure that accounts are not locked 
-    if (!accountStatus[_from]) revert();   
+    if (!IsActive(msg.sender)) revert();      // Ensure that accounts are not locked 
+    if (!IsActive(_from)) revert();
     if (msg.sender != _to) revert();                // Ensure that the message come from the _spender
     if (_value > 0) revert();                       // Ensure that the allowance cannot de augmented
     if (allowed[_from][_to] + _value < 0) revert(); // Ensure that the resulting allowance is not <0
@@ -735,7 +764,7 @@ contract cccur is owned {
   /* Allow _spender to pay on behalf of you from your account, multiple times, each transaction bellow the limit. */
   /* If called again the limit is replaced by the new _amount, if _amount is 0 the delegation is removed */
   function delegate(address _spender, int256 _amount) public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     
     if (_amount>0){
         if (delegated[msg.sender][_spender] == 0) {
@@ -826,7 +855,7 @@ contract cccur is owned {
   /****** Payment Request *******/ 
   /* Add Request*/
   function insertRequest( address _from,  address _to, int256 _amount) public {
-    if (!accountStatus[_to]) revert(); // Check the creator not to be blocked
+    if (!IsActive(_to)) revert(); // Check the creator not to be blocked
    
     if (requested[_from][_to] == 0) {
       reqMap[_from].push(_to);
@@ -842,8 +871,8 @@ contract cccur is owned {
   
   /* INTERNAL - Allow the account who pay to decrasse the request amount */
   function updateRequested(address _from, address _to, int256 _value) internal {
-    if (!accountStatus[msg.sender]) revert();         // Ensure that accounts are not locked 
-    if (!accountStatus[_to]) revert();   
+    if (!IsActive(msg.sender)) revert();               // Ensure that accounts are not locked 
+    if (!IsActive(_to)) revert();  
     if (msg.sender != _from) revert();                // Ensure that the message come from the account who pay
     if (_value > 0) revert();                         // Ensure that the request cannot de augmented
     if (requested[_from][_to] + _value < 0) revert(); // Ensure that the resulting request is not <0
@@ -996,7 +1025,7 @@ contract cccur is owned {
 
   /* Discard a payement request put it into the rejected request. */
   function cancelRequest(address _to)public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     int256 amount = requested[msg.sender][_to];
     if (amount>0){
         if (rejected[_to][msg.sender] == 0) {
@@ -1014,7 +1043,7 @@ contract cccur is owned {
   
   /* Discard acceptation information */
   function discardAcceptedInfo(address _spender) public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<acceptedMap[msg.sender].length; i++){
         if (!found && acceptedMap[msg.sender][i] == _spender){
@@ -1037,7 +1066,7 @@ contract cccur is owned {
   
   /* Discard rejected incormation */
   function discardRejectedInfo(address _spender)public{
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<rejectedMap[msg.sender].length; i++){
         if (!found && rejectedMap[msg.sender][i] == _spender){
