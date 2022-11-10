@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity  >=0.4.18 <0.4.23;
 
 /********************************************************
 
@@ -13,7 +13,7 @@ The following functionality are implemented (details in the code):
 - Payement on behalf of an other user
 
 
-Configuration: 
+Configuration:
 
 - pledge function: you have to define if it is possible to pledge negative amount
                    by switchng between the two "check for overflow" lines
@@ -30,7 +30,7 @@ contract owned {
    constructor() public{
     owner = msg.sender;
   }
-  
+
   function isOwner(address _user) public constant returns (bool) {
     return _user==owner;
   }
@@ -43,18 +43,20 @@ contract owned {
 
 
 /***********************************************
-  Main contract. 
+  Main contract.
 ***********************************************/
-contract _template_ is owned {
+contract ComChainCurrency is owned {
 
   /* Name and symbol (for ComChain internal use) */
-  string  public standard       = '_template_';
-  string  public name           = "_name_";
-  string  public symbol         = "_symbol_"; 
-  
+  string  public name           = "";
+  string  public symbol         = "";
+  string  public version        = "2.0";
+
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
-  
+
+  bool public AutomaticUnlock = false;
+
   /* Tax on the transactions  */
   /*    payed to "Person" (0) account  */
   int16   public percent        = 0;
@@ -65,48 +67,53 @@ contract _template_ is owned {
 
   /* Ensure that the accounts have enough ether to pass transactions */
   /* For this it define the limit bellow which ether is added to the account */
-  uint256 minBalanceForAccounts = 1000000000000000000;  
-  /* And the number of ether to be added */  
-  uint256 public refillSupply   = 2;
-  
+  uint256 minBalanceForAccounts = 100000000000000000;
+  /* And the number of ether to be added */
+  uint256 public refillSupply   = 1;
+
   /* Panic button: allows to block any currency transfert */
   bool public actif            = true;
-  
+
   /*  For initialization purpose: */
   bool firstAdmin              = true;
 
   /* Account property: */
-  mapping (address => int256) public accountType;               // Account type 2 = special account 1 = Business 0 = Personal
+  mapping (address => int256) public accountType;               // Account type 4 = Property Admin, 3 = Pledge Admin, 2 = Super Admin, 1 = Business, 0 = Personal
   mapping (address => bool) public accountStatus;               // Account status
+  mapping (address => bool) public accountAlreadyUsed;          // if False the account is new
   mapping (address => int256) public balanceEL;                 // Balance in coins
   mapping (address => int256) public balanceCM;                 // Balance in Mutual credit
   mapping (address => int256) public limitCredit;               // Min limit (minimal accepted CM amount expected to be 0 or <0 )
   mapping (address => int256) public limitDebit;                // Max limit  (maximal accepted CM amount expected to be 0 or >0 )
-  
+  mapping (address => int256) public ReplacementRequestNumber;  // Count the replacement request for a given account
+  mapping (address => address) public requestReplacementFrom;   // Pending replacement request the key is the Account to be replaced
+  mapping (address => address) public requestReplacementTo;     // Pending replacement request the key is the target Account
+  mapping (address => address) public newAddress;               // Address which replaces the current one
+
   /* Allowance, Authorization and Request:*/
-  
+
   mapping (address => mapping (address => int256)) public allowed;     // Array of allowed payements
   mapping (address => address[]) public allowMap;
-  
+
   mapping (address => mapping (address => int256)) public requested;   // Array of requested payments
   mapping (address => address[]) public reqMap;
-  
+
   mapping (address => mapping (address => int256)) public delegated;    // Array of authorized accounts
   mapping (address => address[]) public delegMap;
-  
+
   mapping (address => mapping (address => int256)) public myAllowed;     // Array of allowed payements
   mapping (address => address[]) public myAllowMap;
-  
+
   mapping (address => mapping (address => int256)) public myRequested;   // Array of requested payments
   mapping (address => address[]) public myReqMap;
-  
+
   mapping (address => mapping (address => int256)) public myDelegated;   // Array of authorized accounts
   mapping (address => address[]) public myDelegMap;
-  
+
   /* Keep trace of accepted / rejected payment requests */
   mapping (address => mapping (address => int256)) accepted;    // Array of requested payments accepted
   mapping (address => address[]) public acceptedMap;
-  
+
   mapping (address => mapping (address => int256)) rejected;    // Array of requested payments rejected
   mapping (address => address[]) public rejectedMap;
 
@@ -116,36 +123,39 @@ contract _template_ is owned {
   event CreditLimitChange(uint256 time, address target, int256 amount);
   event DebitLimitChange(uint256 time, address target, int256 amount);
   event Refilled(uint256 time, address target, uint256 balance, uint256 limit);
-  
+
   /* Token transfert */
   event Pledge(uint256 time, address indexed to, int256 recieved);
   event Transfer(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 recieved);
   event TransferCredit(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 recieved);
-  
+
   /* Allowance and Authorization*/
   event Approval(uint256 time, address indexed from, address indexed to, int256 value);
   event Delegation(uint256 time, address indexed from, address indexed to, int256 value);
-  
+
   event Rejection(uint256 time, address indexed from, address indexed to, int256 value);
 
-  /****************************************************************************/ 
+  /* Account being replaced by a new one */
+  event AccountReplaced(uint256 time, address indexed oldAdd, address indexed newAdd, int256 indexed accstatus);
+
+  /****************************************************************************/
   /***** Contract creation *******/
   /* Initializes contract */
-   constructor(address taxAddress, int8 taxPercent, int8 taxPercentLeg) public {
-    txAddr = taxAddress;
-    percent = taxPercent;
-    percentLeg = taxPercentLeg;
+   constructor(string _name, string _symbol) public {
+    txAddr = msg.sender;
+    name = _name;
+    symbol = _symbol;
     setFirstAdmin();
   }
-  
-  /* INTERNAL - Set the first admin and ensure that this account is of the good type and actif.*/
+
+  /* INTERNAL - Set the first super admin (2) and ensure that this account is of the good type and actif.*/
   function setFirstAdmin() internal {
     if (firstAdmin == false) revert();
     accountType[owner] = 2;
     accountStatus[owner] = true;
     firstAdmin = false;
   }
-  
+
   /***** Ether handling *******/
   /* The contract dispatch Eth to the account: it must be able to recieve them */
   function () public payable{}
@@ -153,7 +163,7 @@ contract _template_ is owned {
   /* In the case we need to retrieve Eth from the contract. Sent it back to the Owner */
   function repay(uint _amount) public onlyOwner {
       uint amount = _amount * 1 ether;
-      owner.transfer(amount); 
+      owner.transfer(amount);
   }
 
   /***** Contract administration *******/
@@ -163,7 +173,12 @@ contract _template_ is owned {
     accountStatus[newOwner] = true;
     owner = newOwner;
   }
-  
+
+  /* Manage the Automatic Unlock */
+  function setAutomaticUnlock(bool new_auto_unlock) public onlyOwner {
+    AutomaticUnlock = new_auto_unlock;
+  }
+
   /* Set the threshold to refill an account (in ETH)*/
   function setRefillLimit(uint256 _minimumBalance) public onlyOwner {
     minBalanceForAccounts = _minimumBalance * 1 ether;
@@ -178,7 +193,7 @@ contract _template_ is owned {
   function setContractStatus(bool _actif) public onlyOwner {
       actif=_actif;
   }
-  
+
   /* INTERNAL - Top up function: Check that an account has enough ETH if not send some to it */
   function topUp(address _addr) internal {
     uint amount = refillSupply * 1 ether;
@@ -188,12 +203,12 @@ contract _template_ is owned {
       }
     }
   }
-  
+
   /* INTERNAL - Call the Top up function for the message sender */
   function refill() internal {
     topUp(msg.sender);
   }
-  
+
   /****** Tax handling *******/
   /* Get the account to which the tax is paid */
   function getTaxAccount() public constant returns (address) {
@@ -204,7 +219,7 @@ contract _template_ is owned {
   function setTaxAccount(address _target) public onlyOwner {
     txAddr = _target;
   }
-  
+
   /* Get the tax percentage for transaction to a person (0) account */
   function getTaxPercent() public constant returns (int16) {
     return percent;
@@ -216,69 +231,279 @@ contract _template_ is owned {
     if (_value > 10000) revert();
     percent = _value;
   }
-  
+
   /* Get the tax percentage for transaction to a buisness (1) account */
   function getTaxPercentLeg() public constant returns (int16) {
     return percentLeg;
   }
-  
-  /* Set the tax percentage for transaction to a buisness (1) account */ 
+
+  /* Set the tax percentage for transaction to a buisness (1) account */
   function setTaxPercentLeg(int16 _value) public onlyOwner {
     if (_value < 0) revert();
     if (_value > 10000) revert();
     percentLeg = _value;
   }
-  
+
   /****** Account handling *******/
 
   /* Get the total balance of an account */
   function balanceOf(address _from) public constant returns (int256 amount){
      return  balanceEL[_from] + balanceCM[_from];
   }
-  
-  /* Change account's property */  
-  function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
-  
-    // Ensure that the sender is an admin and is not blocked
-    if (msg.sender!=owner){
-        if (accountType[msg.sender] < 2  || !accountStatus[msg.sender]) revert();
+
+  function IsActive(address target) internal constant returns (bool result) {
+    if (accountStatus[target]) {
+      return true;
+    } else if (AutomaticUnlock && !accountAlreadyUsed[target]) {
+      return true;
+    } else {
+      return false;
     }
-    
+  }
+
+  /* change the accountAlreadyUsed */
+  function use(address add) internal {
+    // unlock if needed
+    if (AutomaticUnlock && !accountAlreadyUsed[add]) {
+      accountStatus[add] = true;
+    }
+
+    accountAlreadyUsed[add] = true;
+
+    if (requestReplacementTo[add]!=address(0)) {
+       requestReplacementFrom[requestReplacementTo[add]]=address(0);
+       requestReplacementTo[add]=address(0);
+    }
+  }
+
+  function resetReplacementRequestNumber(address account) public {
+     if (msg.sender!=owner){
+        if (accountType[msg.sender] != 2  && accountType[msg.sender] != 3 ) revert();
+    }
+    ReplacementRequestNumber[account] = 0;
+
+    // ensure the ETH level of the account
+    refill();
+    topUp(account);
+  }
+
+
+  /* Change account's property */
+  function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
+
+    // Ensure that the sender is a super admin or a property admin and is not blocked
+    if (msg.sender!=owner){
+        if (accountType[msg.sender] < 2  || accountType[msg.sender] == 3 || !accountStatus[msg.sender])
+            revert(); // dev: permission denied
+    }
+
+    // Replaced account cannot be modified
+    if (newAddress[_targetAccount]!=address(0)) revert();
+
     accountStatus[_targetAccount] = _accountStatus;
-    
-    // Prevent changing the Type of an Admin (2) account
+
+    // Prevent changing the Type of a super Admin (2) account
     if (accountType[_targetAccount] != 2){
         limitDebit[_targetAccount] = _debitLimit;
         limitCredit[_targetAccount] = _creditLimit;
-        
     }
-    accountType[_targetAccount] = _accountType;
-    
+
+    if (_targetAccount!=owner) {
+        accountType[_targetAccount] = _accountType;
+    }
+
+    use(_targetAccount);
+
     emit SetAccountParams(now, _targetAccount, _accountStatus, accountType[_targetAccount], limitDebit[_targetAccount],  limitCredit[_targetAccount]);
-    
+
     // ensure the ETH level of the account
+    refill();
     topUp(_targetAccount);
-    topUp(msg.sender);
   }
-  
- 
-  /****** Coin and Barter transfert *******/ 
+
+  function AllowReplaceBy(address target) public payable {
+     if (!actif) revert();                                                      // panic lock
+     if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
+     if (!IsActive(msg.sender)) revert();                                       // locked account cannot be replaced
+     if (accountAlreadyUsed[target]==true) revert();                            // only new account can be a replacement target
+     if (ReplacementRequestNumber[msg.sender]>2) revert();                      // limit the number of replacement request possible
+
+     if (requestReplacementTo[target]!=address(0)) {                            // Cancel replacement request if exists
+       requestReplacementFrom[requestReplacementTo[target]]=address(0);
+       requestReplacementTo[target]=address(0);
+     }
+
+     if (requestReplacementFrom[msg.sender]!=address(0)) {                      // Cancel replacement request if exists
+       requestReplacementTo[requestReplacementFrom[msg.sender]]=address(0);
+       requestReplacementFrom[target]=address(0);
+     }
+
+     requestReplacementFrom[target]=msg.sender;                                // register the request
+     requestReplacementTo[msg.sender]=target;
+
+     ReplacementRequestNumber[msg.sender]+=1;
+     topUp(target);                                                            // ensure targuet has eth to accept the request
+  }
+
+  function CancelReplaceBy() public  {
+     if (!actif) revert();                                                      // panic lock
+     if (requestReplacementFrom[msg.sender]!=address(0)) {                      // Cancel replacement request if exists
+       requestReplacementTo[requestReplacementFrom[msg.sender]]=address(0);
+       requestReplacementFrom[msg.sender]=address(0);
+       refill();
+     }
+
+  }
+
+
+  /* replace the current account by a new one transfering its content */
+
+  function AcceptReplaceAccount() public {
+     if (!actif) revert();                                                      // panic lock
+     if (accountAlreadyUsed[msg.sender]==true) revert();                        // only new account can be a replacement target
+
+     if (requestReplacementTo[msg.sender]==address(0)) revert();                // only existing request can be treated
+     address original_account = requestReplacementTo[msg.sender];
+
+     if (newAddress[original_account]!=address(0)) revert();                     // Already replaced account cannot be replaced again
+     if (!IsActive(original_account)) revert();                                  // locked account cannot be replaced
+
+     // transfert the type (and ownership if needed)
+     use(msg.sender);
+     accountStatus[msg.sender] = true;
+     if (original_account == owner) {                                            // if the replaced account is the contract owner transfert the priviledge
+        accountType[msg.sender] = 2;
+        owner = msg.sender;
+     } else {
+        accountType[msg.sender] = accountType[original_account];
+     }
+
+     // transfert the values and limit
+     balanceEL[msg.sender] = balanceEL[original_account];
+     balanceEL[original_account] = 0;
+     balanceCM[msg.sender] = balanceCM[original_account];
+     balanceCM[original_account] = 0;
+     limitCredit[msg.sender] = limitCredit[original_account];
+     limitCredit[original_account] = 0;
+     limitDebit[msg.sender] = limitDebit[original_account];
+     limitDebit[original_account] = 0;
+
+
+
+     // transfert the allowance from the replaced account
+     for (uint index=0; index<allowMap[original_account].length; index++) {
+        address spender = allowMap[original_account][index];
+        int256 amount = allowed[original_account][spender];
+        if (amount > 0) {
+            allowMap[msg.sender].push(spender);
+            myAllowMap[spender].push(msg.sender);
+            allowed[msg.sender][spender] = amount;
+            allowed[original_account][spender] = 0;
+            myAllowed[spender][msg.sender] = amount;
+            myAllowed[spender][original_account] = 0;
+        }
+     }
+     // transfert the allowance to the replaced account
+     for (index=0; index < myAllowMap[original_account].length; index++) {
+        address allower = myAllowMap[original_account][index];
+        amount = myAllowed[original_account][allower];
+        if (amount > 0) {
+            allowMap[allower].push(msg.sender);
+            myAllowMap[msg.sender].push(allower);
+            allowed[allower][msg.sender] = amount;
+            allowed[allower][original_account] = 0;
+            myAllowed[msg.sender][allower] = amount;
+            myAllowed[original_account][allower] = 0;
+        }
+     }
+
+     // transfert the autorization from the replaced account
+      for (index=0; index<delegMap[original_account].length; index++) {
+        address delegate = delegMap[original_account][index];
+        amount = delegated[original_account][delegate];
+        if (amount > 0) {
+            delegMap[msg.sender].push(delegate);
+            myDelegMap[delegate].push(msg.sender);
+            delegated[msg.sender][delegate] = amount;
+            delegated[original_account][delegate] = 0;
+            myDelegated[delegate][msg.sender] = amount;
+            myDelegated[delegate][original_account] = 0;
+        }
+     }
+
+     // transfert the autorization to the replaced account
+     for (index=0; index < myDelegMap[original_account].length; index++) {
+        address delegetor = myDelegMap[original_account][index];
+        amount = myDelegated[original_account][delegetor];
+        if (amount > 0) {
+            delegMap[delegetor].push(msg.sender);
+            myDelegMap[msg.sender].push(delegetor);
+            delegated[delegetor][msg.sender] = amount;
+            delegated[delegetor][original_account] = 0;
+            myDelegated[msg.sender][delegetor] = amount;
+            myDelegated[original_account][delegetor] = 0;
+        }
+     }
+
+     // transfert the payment requet made by the replaced account
+     for (index=0; index<reqMap[original_account].length; index++) {
+        address debitor = reqMap[original_account][index];
+        amount = requested[original_account][debitor];
+        if (amount > 0) {
+            reqMap[msg.sender].push(debitor);
+            myReqMap[debitor].push(msg.sender);
+            requested[msg.sender][debitor] = amount;
+            requested[original_account][debitor] = 0;
+            myRequested[debitor][msg.sender] = amount;
+            myRequested[debitor][original_account] = 0;
+        }
+     }
+     // transfert the payment requet made to the replaced account
+     for (index=0; index < myReqMap[original_account].length; index++) {
+        address requestor = myReqMap[original_account][index];
+        amount = myRequested[original_account][requestor];
+        if (amount > 0) {
+            reqMap[requestor].push(msg.sender);
+            myReqMap[msg.sender].push(requestor);
+            requested[requestor][msg.sender] = amount;
+            requested[requestor][original_account] = 0;
+            myRequested[msg.sender][requestor] = amount;
+            myRequested[original_account][requestor] = 0;
+        }
+     }
+
+     // NOTE: Already payed or rejected payment request are not transfered!
+
+     // lock the old account and emit event
+     newAddress[original_account] = msg.sender;
+     accountStatus[original_account] = false;
+     emit AccountReplaced(now, original_account, msg.sender, accountType[msg.sender]);
+  }
+
+
+  /****** Coin and Barter transfert *******/
   /* Coin creation (Nantissement) */
   function pledge(address _to, int256 _value)  public {
-    if (accountType[msg.sender] < 2) revert();                                  // Check that only Special Accounts (2) can pledge
-    if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
-    if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
-    // if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
+      // Check that only super admin (2) or pledge admin (3) can pledge
+    if (accountType[msg.sender] < 2 || accountType[msg.sender] > 3)
+        revert(); // dev: permission denied
+    if (!IsActive(msg.sender))
+        revert(); // dev: disabled accounts can't pledge
+    if (!IsActive(_to)) revert();  // dev: disabled accounts can't receive pledge
+    // if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
+    if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
+   // if (newAddress[_to]!=address(0)) revert();                                  // Replaced account cannot be pledged
     balanceEL[_to] += _value;                                                   // Add the amount to the recipient
     amountPledged += _value;                                                    // and to the Money supply
-    
+    use(_to);
+
     emit Pledge(now, _to, _value);
     // ensure the ETH level of the account
+    refill();
     topUp(_to);
-    topUp(msg.sender);
   }
-  
-  
+
+
     /* Make Direct payment in currency*/
   function transfer(address _to, int256 _value) public {
     payNant(msg.sender,_to,_value);
@@ -288,14 +513,14 @@ contract _template_ is owned {
   function transferCM(address _to, int256 _value) public {
    payCM(msg.sender,_to,_value);
   }
-  
+
   /* Transfert "on behalf of" of Coin and Mutual Credit (delegation) */
   /* Make Transfert "on behalf of" in coins*/
   function transferOnBehalfOf(address _from, address _to, int256 _value)public  {
     if (delegated[_from][msg.sender] < _value) revert();
     payNant(_from,_to,_value);
   }
-  
+
   /* Make  Transfert "on behalf of" in Mutual Credit */
   function transferCMOnBehalfOf(address _from, address _to, int256 _value)public {
     if (delegated[_from][msg.sender] < _value) revert();
@@ -306,8 +531,8 @@ contract _template_ is owned {
   // Send _value Coin from address _from to the sender
   function transferFrom(address _from, int256 _value) public {
    if (allowed[_from][msg.sender] >= _value && balanceEL[_from]>=_value) {
-     payNant(_from, msg.sender,_value);   
-     
+     payNant(_from, msg.sender,_value);
+
      // substract the value from the allowed
      updateAllowed(_from, msg.sender, -_value);
 
@@ -315,86 +540,89 @@ contract _template_ is owned {
       insertRequest(_from,  msg.sender, _value);                   // if allowed is not enough (or do not exist) create a request
     }
   }
-  
+
   // Send _value Mutual Credit from address _from to the sender
   function transferCMFrom(address _from, int256 _value) public {
     if (allowed[_from][msg.sender] >= _value  && balanceCM[_from]>=_value) {
      payCM(_from, msg.sender,_value);
-     
+
      // substract the value from the allowed
      updateAllowed(_from, msg.sender, -_value);
-     
+
     } else {
       insertRequest(_from,  msg.sender, _value);                   // if allowed is not enough (or do not exist) create a request
     }
   }
-  
-  
-  
-  
-  
+
+
+
+
+
   /* INTERNAL - Coin transfert  */
   function payNant(address _from,address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
-    if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
-    if (!accountStatus[_to]) revert();
-    
+
+    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
+    if (!IsActive(_to)) revert();
+
     // compute the tax
     int16 tax_percent = percent;
     if (accountType[_to] == 1){
         tax_percent = percentLeg;
     }
     int256 tax = (_value * tax_percent) / 10000;
-    
+
     // compute the recieved ammount
     int256 amount = _value - tax;
 
     if (!checkEL(_from, amount + tax)) revert(); // check coin availability
     if (balanceEL[_to] + amount < balanceEL[_to]) revert(); //overflow check
-    
+
     // Do the transfert
     balanceEL[_from] -= amount + tax;         // Subtract from the sender
-    balanceEL[_to] += amount;    
+    balanceEL[_to] += amount;
     balanceEL[txAddr] += tax;
-     
+
+    use(_to);
     emit Transfer(now, _from, _to, amount+tax, tax, amount);        // Notify anyone listening that this transfer took place
     // ensure the ETH level of the account
     topUp(_to);
     topUp(_from);
-  } 
-  
+  }
+
   /* INTERNAL - Mutual Credit (Barter) transfert  */
   function payCM(address _from, address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
-    if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
-    if (!accountStatus[_to]) revert();
-    
+    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
+    if (!IsActive(_to)) revert();
+
     // compute the tax
     int16 tax_percent = percent;
     if (accountType[_to] == 1){
         tax_percent = percentLeg;
     }
     int256 tax = (_value * tax_percent) / 10000;
-    
+
     // compute the recieved ammount
     int256 amount = _value - tax;
-    
+
     // Check the limit & overflow
     if (!checkCMMin(_from, amount + tax)) revert();
     if (!checkCMMax(_to, amount)) revert();
     if (balanceCM[_to] + amount < balanceCM[_to]) revert(); //overflow check
-    
+
     // Do the transfert
     balanceCM[_from] -= amount + tax;         // Subtract from the sender
-    balanceCM[_to] += amount;    
+    balanceCM[_to] += amount;
     balanceCM[txAddr] += tax;
-    
+
+    use(_to);
     emit TransferCredit(now, _from, _to, amount+tax, tax, amount);  // Notify anyone listening that this transfer took place
     // ensure the ETH level of the account
     topUp(_to);
     topUp(_from);
   }
-  
+
   /* INTERNAL - Check the sender has enough coin to do the transfert */
   function checkEL(address _addr, int256 _value) internal view returns (bool)  {
     int256 checkBalance = balanceEL[_addr] - _value;
@@ -415,7 +643,7 @@ contract _template_ is owned {
       return true;
     }
   }
-  
+
   /* INTERNAL - Check that the reciever can recieve the CM amount */
   function checkCMMax(address _addr, int256 _value) internal view returns (bool) {
     int256 checkBalance = balanceCM[_addr] + _value;
@@ -426,13 +654,15 @@ contract _template_ is owned {
       return true;
     }
   }
-  
 
-  /****** Allowance *******/ 
+
+  /****** Allowance *******/
   /* Allow _spender to withdraw from your account, multiple times, up to the _value amount.  */
   /* If called again the _amount is added to the allowance, if amount is negatif the allowance is deleted  */
   function approve(address _spender, int256 _amount) public returns (bool success) {
-    if (!accountStatus[msg.sender]) revert(); // Check the sender not to be blocked
+    if (!IsActive(msg.sender)) revert();  // Check the sender not to be blocked
+
+
     if (_amount>=0){
         if ( allowed[msg.sender][_spender] == 0 ) {
             allowMap[msg.sender].push(_spender);
@@ -447,58 +677,60 @@ contract _template_ is owned {
                 if (!found && allowMap[msg.sender][i] == _spender){
                     found=true;
                 }
-                
+
                 if (found){
                     if (i < allowMap[msg.sender].length-1){
                          allowMap[msg.sender][i] = allowMap[msg.sender][i+1];
                     }
                 }
         }
-            
+
         if (found){
                  delete allowMap[msg.sender][allowMap[msg.sender].length-1]; // remove the last record from the mapping array
-                 allowMap[msg.sender].length--;                            // adjust the length of the mapping array    
+                 allowMap[msg.sender].length--;                            // adjust the length of the mapping array
                  allowed[msg.sender][_spender] = 0;                          // remove the record from the mapping
         }
-        
+
         // delete my allowance
         found = false;
         for (i = 0; i<myAllowMap[_spender].length; i++){
                 if (!found && myAllowMap[_spender][i] == msg.sender){
                     found=true;
                 }
-                
+
                 if (found){
                     if (i < myAllowMap[_spender].length-1){
                          myAllowMap[_spender][i] = myAllowMap[_spender][i+1];
                     }
                 }
         }
-            
+
         if (found){
                  delete myAllowMap[_spender][myAllowMap[_spender].length-1]; // remove the last record from the mapping array
-                 myAllowMap[_spender].length--;                            // adjust the length of the mapping array    
+                 myAllowMap[_spender].length--;                            // adjust the length of the mapping array
                  myAllowed[_spender][msg.sender] = 0;                          // remove the record from the mapping
         }
     }
     emit Approval(now, msg.sender, _spender, _amount);
-    topUp(msg.sender);
+    use(_spender);
+    use(msg.sender);
+    refill();
     topUp(_spender);
     return true;
   }
-  
+
   /* INTERNAL - Allow the spender to decrasse the allowance */
   function updateAllowed(address _from, address _to, int256 _value) internal {
-    if (!accountStatus[msg.sender]) revert();       // Ensure that accounts are not locked 
-    if (!accountStatus[_from]) revert();   
+    if (!IsActive(msg.sender)) revert();      // Ensure that accounts are not locked
+    if (!IsActive(_from)) revert();
     if (msg.sender != _to) revert();                // Ensure that the message come from the _spender
     if (_value > 0) revert();                       // Ensure that the allowance cannot de augmented
     if (allowed[_from][_to] + _value < 0) revert(); // Ensure that the resulting allowance is not <0
-    allowed[_from][_to] += _value; 
+    allowed[_from][_to] += _value;
     topUp(_to);
     topUp(_from);
   }
-  
+
   /* Count the number of allowances define on the _owner account */
   function allowanceCount(address _owner) public constant returns (uint256){
     return allowMap[_owner].length;
@@ -508,7 +740,7 @@ contract _template_ is owned {
   function myAllowanceCount(address _spender) public constant returns (uint256){
     return allowMap[_spender].length;
   }
-  
+
   /** list the allowances define on a given _owner account  **/
   function allowance(address _owner, address _spender) public constant returns (int256 remaining) {
     return allowed[_owner][_spender];
@@ -531,14 +763,14 @@ contract _template_ is owned {
     return allowMap[_spender][index];
   }
 
-  
-  
-  /****** Delegation *******/ 
+
+
+  /****** Delegation *******/
   /* Allow _spender to pay on behalf of you from your account, multiple times, each transaction bellow the limit. */
   /* If called again the limit is replaced by the new _amount, if _amount is 0 the delegation is removed */
   function delegate(address _spender, int256 _amount) public {
-    if (!accountStatus[msg.sender]) revert();
-    
+    if (!IsActive(msg.sender)) revert();
+
     if (_amount>0){
         if (delegated[msg.sender][_spender] == 0) {
           delegMap[msg.sender].push(_spender);
@@ -554,47 +786,46 @@ contract _template_ is owned {
                 if (!found && delegMap[msg.sender][i] == _spender){
                     found=true;
                 }
-                
+
                 if (found){
                     if (i < delegMap[msg.sender].length-1){
                          delegMap[msg.sender][i] = delegMap[msg.sender][i+1];
                     }
                 }
         }
-            
+
         if (found){
                  delete delegMap[msg.sender][delegMap[msg.sender].length-1]; // remove the last record from the mapping array
-                 delegMap[msg.sender].length--;                            // adjust the length of the mapping array    
+                 delegMap[msg.sender].length--;                            // adjust the length of the mapping array
                  delegated[msg.sender][_spender] = 0;                          // remove the record from the mapping
         }
-        
+
         // delete my delegation
         found = false;
         for ( i = 0; i<myDelegMap[_spender].length; i++){
                 if (!found && myDelegMap[_spender][i] == msg.sender){
                     found=true;
                 }
-                
+
                 if (found){
                     if (i < myDelegMap[_spender].length-1){
                          myDelegMap[_spender][i] = myDelegMap[_spender][i+1];
                     }
                 }
         }
-            
+
         if (found){
                  delete myDelegMap[_spender][myDelegMap[_spender].length-1]; // remove the last record from the mapping array
-                 myDelegMap[_spender].length--;                            // adjust the length of the mapping array    
+                 myDelegMap[_spender].length--;                            // adjust the length of the mapping array
                  myDelegated[_spender][msg.sender] = 0 ;                         // remove the record from the mapping
         }
-        
-        
+
+
     }
-    topUp(msg.sender);
-    topUp(_spender);
+    refill();
     emit Delegation(now, msg.sender, _spender, _amount);
   }
-  
+
   /* Count the number of delegation define on the _owner account */
   function delegationCount(address _owner) public constant returns (uint256){
     return delegMap[_owner].length;
@@ -604,7 +835,7 @@ contract _template_ is owned {
   function myDelegationCount(address _spender) public constant returns (uint256){
     return myDelegMap[_spender].length;
   }
-  
+
   /** list the delegation define on a given _owner account  **/
   function delegation(address _owner, address _spender)public  constant returns (int256 remaining) {
     return delegated[_owner][_spender];
@@ -614,7 +845,7 @@ contract _template_ is owned {
     return delegMap[_owner][index];
   }
 
- 
+
   /** list the delegations that a _spender account can use **/
   function myDelegation(address _spender, address _owner) public constant returns (int256 remaining) {
     return myDelegated[_spender][_owner];
@@ -624,29 +855,29 @@ contract _template_ is owned {
     return myDelegMap[_spender][index];
   }
 
-  
-  
-  /****** Payment Request *******/ 
+
+
+  /****** Payment Request *******/
   /* Add Request*/
   function insertRequest( address _from,  address _to, int256 _amount) public {
-    if (!accountStatus[_to]) revert(); // Check the creator not to be blocked
-   
+    if (!IsActive(_to)) revert(); // Check the creator not to be blocked
+
     if (requested[_from][_to] == 0) {
       reqMap[_from].push(_to);
       myReqMap[_to].push(_from);
     }
-    
+
     if (requested[_from][_to] + _amount < 0) revert();
     requested[_from][_to] += _amount;
     myRequested[_to][_from] += _amount;
     topUp(_to);
     topUp(_from);
   }
-  
+
   /* INTERNAL - Allow the account who pay to decrasse the request amount */
   function updateRequested(address _from, address _to, int256 _value) internal {
-    if (!accountStatus[msg.sender]) revert();         // Ensure that accounts are not locked 
-    if (!accountStatus[_to]) revert();   
+    if (!IsActive(msg.sender)) revert();               // Ensure that accounts are not locked
+    if (!IsActive(_to)) revert();
     if (msg.sender != _from) revert();                // Ensure that the message come from the account who pay
     if (_value > 0) revert();                         // Ensure that the request cannot de augmented
     if (requested[_from][_to] + _value < 0) revert(); // Ensure that the resulting request is not <0
@@ -655,7 +886,7 @@ contract _template_ is owned {
     topUp(_to);
     topUp(_from);
   }
-  
+
   /* INTERNAL - Allow the account who pay to delete the request  */
   function clear_request(address _from, address _to) internal {
     if (msg.sender != _from) revert();                // Ensure that the message come from the account who pay
@@ -667,45 +898,45 @@ contract _template_ is owned {
                 if (!found && reqMap[_from][i] == _to){
                     found=true;
                 }
-                
+
                 if (found){
                     if (i < reqMap[_from].length-1){
                          reqMap[_from][i] = reqMap[_from][i+1];
                     }
                 }
             }
-            
+
             if (found){
                  delete reqMap[_from][reqMap[_from].length-1]; // remove the last record from the mapping array
-                 reqMap[_from].length--;                            // adjust the length of the mapping array    
+                 reqMap[_from].length--;                            // adjust the length of the mapping array
                  requested[_from][_to] = 0 ;                         // remove the record from the mapping
             }
       }
-      
+
       if (myRequested[_to][_from]<=0){
             found = false;
             for (i = 0; i<myReqMap[_to].length; i++){
                 if (!found && myReqMap[_to][i] == _from){
                     found=true;
                 }
-                
+
                 if (found){
                     if (i < myReqMap[_to].length-1){
                          myReqMap[_to][i] = myReqMap[_to][i+1];
                     }
                 }
             }
-            
+
             if (found){
                  delete myReqMap[_to][myReqMap[_to].length-1]; // remove the last record from the mapping array
-                 myReqMap[_to].length--;                       // adjust the length of the mapping array    
+                 myReqMap[_to].length--;                       // adjust the length of the mapping array
                  myRequested[_to][_from] = 0 ;               // remove the record from the mapping
             }
       }
     topUp(_to);
     topUp(_from);
  }
-  
+
  /* Count the number of request define on the _owner account */
  function requestCount(address _owner) public constant returns (uint256){
     return reqMap[_owner].length;
@@ -715,7 +946,7 @@ contract _template_ is owned {
   function myRequestCount(address _spender) public constant returns (uint256){
     return myReqMap[_spender].length;
   }
-  
+
 
 
   /** list the open pay request define for a given _owner account  **/
@@ -738,11 +969,11 @@ contract _template_ is owned {
   }
 
 
-  /** list the accepted request which have been created by a _owner account **/ 
+  /** list the accepted request which have been created by a _owner account **/
   function acceptedAmount(address _owner, address _spender) public constant returns (int256 remaining) {
     return accepted[_owner][_spender];
   }
-  
+
   function acceptedCount(address _owner) public constant returns (uint256){
     return acceptedMap[_owner].length;
   }
@@ -753,7 +984,7 @@ contract _template_ is owned {
 
 
 
-  /** list the rejected request which have been created by a _owner account **/ 
+  /** list the rejected request which have been created by a _owner account **/
   function rejectedAmount(address _owner, address _spender) public constant returns (int256 remaining) {
     return rejected[_owner][_spender];
   }
@@ -766,102 +997,98 @@ contract _template_ is owned {
     return rejectedMap[_owner].length;
   }
 
-  
-  
+
+
   /****  Request handling  ****/
   /* Accept and pay in coin a payment request (also delete the request if needed and add it to the accepted list) */
   function payRequest(address _to, int256 _value) public {
     payNant(msg.sender,_to,_value);
     updateRequested(msg.sender, _to, -_value);
-    
+
     if (accepted[_to][msg.sender] == 0) {
          acceptedMap[_to].push(msg.sender);
     }
     accepted[_to][msg.sender] += _value;
-   
+
     clear_request(msg.sender,_to);
   }
-  
-  
+
+
   /* Accept and pay in mutual credit a payment request (also delete the request if needed and add it to the accepted list) */
   function payRequestCM(address _to, int256 _value) public{
     payCM(msg.sender,_to,_value);
     updateRequested(msg.sender, _to, -_value);
-    
+
     if (accepted[_to][msg.sender] == 0) {
          acceptedMap[_to].push(msg.sender);
     }
     accepted[_to][msg.sender] += _value;
-    
+
     clear_request(msg.sender,_to);
   }
-  
+
 
   /* Discard a payement request put it into the rejected request. */
   function cancelRequest(address _to)public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     int256 amount = requested[msg.sender][_to];
     if (amount>0){
         if (rejected[_to][msg.sender] == 0) {
                rejectedMap[_to].push(msg.sender);
         }
-        
+
         updateRequested(msg.sender, _to, -amount);
         rejected[_to][msg.sender] += amount;
-        
+
         emit Rejection(now, msg.sender, _to, amount);
         clear_request(msg.sender, _to);
     }
   }
-  
-  
+
+
   /* Discard acceptation information */
   function discardAcceptedInfo(address _spender) public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<acceptedMap[msg.sender].length; i++){
         if (!found && acceptedMap[msg.sender][i] == _spender){
             found=true;
         }
-        
+
         if (found){
             if (i < acceptedMap[msg.sender].length-1){
                  acceptedMap[msg.sender][i] = acceptedMap[msg.sender][i+1];
             }
         }
     }
-    
+
     if (found){
          delete acceptedMap[msg.sender][acceptedMap[msg.sender].length-1]; // remove the last record from the mapping array
-         acceptedMap[msg.sender].length--;                                 // adjust the length of the mapping array    
+         acceptedMap[msg.sender].length--;                                 // adjust the length of the mapping array
          accepted[msg.sender][_spender] = 0;                                // remove the record from the mapping
     }
   }
-  
+
   /* Discard rejected incormation */
   function discardRejectedInfo(address _spender)public{
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<rejectedMap[msg.sender].length; i++){
         if (!found && rejectedMap[msg.sender][i] == _spender){
             found=true;
         }
-        
+
         if (found){
             if (i < rejectedMap[msg.sender].length-1){
                  rejectedMap[msg.sender][i] = rejectedMap[msg.sender][i+1];
             }
         }
     }
-    
+
     if (found){
          delete rejectedMap[msg.sender][rejectedMap[msg.sender].length-1]; // remove the last record from the mapping array
-         rejectedMap[msg.sender].length--;                                 // adjust the length of the mapping array    
+         rejectedMap[msg.sender].length--;                                 // adjust the length of the mapping array
          rejected[msg.sender][_spender] = 0;                               // remove the record from the mapping
     }
   }
 }
-
-
-
-
