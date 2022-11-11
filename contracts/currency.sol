@@ -125,9 +125,9 @@ contract ComChainCurrency is owned {
   event Refilled(uint256 time, address target, uint256 balance, uint256 limit);
 
   /* Token transfer */
-  event Pledge(uint256 time, address indexed to, int256 recieved);
-  event Transfer(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 recieved);
-  event TransferCredit(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 recieved);
+  event Pledge(uint256 time, address indexed to, int256 received);
+  event Transfer(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 received);
+  event TransferCredit(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 received);
 
   /* Allowance and Authorization*/
   event Approval(uint256 time, address indexed from, address indexed to, int256 value);
@@ -158,8 +158,8 @@ contract ComChainCurrency is owned {
   }
 
   /***** Ether handling *******/
-  /* The contract dispatch Eth to the account: it must be able to recieve them */
-  function () public payable{}
+  /* The contract dispatch Eth to the account: it must be able to receive them */
+  function () public payable {}
 
   /* In the case we need to retrieve Eth from the contract. Sent it back to the Owner */
   function repay(uint _amount) public onlyOwner {
@@ -586,7 +586,7 @@ contract ComChainCurrency is owned {
     }
     int256 tax = (_value * tax_percent) / 10000;
 
-    // compute the recieved ammount
+    // compute the received ammount
     int256 amount = _value - tax;
 
     if (!checkEL(_from, amount + tax)) revert(); // check coin availability
@@ -617,7 +617,7 @@ contract ComChainCurrency is owned {
     }
     int256 tax = (_value * tax_percent) / 10000;
 
-    // compute the recieved ammount
+    // compute the received ammount
     int256 amount = _value - tax;
 
     // Check the limit & overflow
