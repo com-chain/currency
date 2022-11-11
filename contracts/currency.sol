@@ -374,10 +374,10 @@ contract ComChainCurrency is owned {
      if (accountAlreadyUsed[msg.sender]==true)
          revert(); // dev: only new account can be a replacement target
 
-     if (requestReplacementTo[msg.sender] == address(0))
+     if (requestReplacementFrom[msg.sender] == address(0))
          revert(); // dev: only existing request can be treated
 
-     address original_account = requestReplacementTo[msg.sender];
+     address original_account = requestReplacementFrom[msg.sender];
 
      if (newAddress[original_account]!=address(0))
          revert(); // dev: already replaced account cannot be replaced again
