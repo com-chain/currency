@@ -229,8 +229,10 @@ contract ComChainCurrency is owned {
 
   /* Set the tax percentage for transaction to a person (0) account */
   function setTaxPercent(int16 _value) public onlyOwner {
-    if (_value < 0) revert();
-    if (_value > 10000) revert();
+    if (_value < 0)
+        revert(); // dev: amount should be greater than 0
+    if (_value > 10000)
+        revert(); // dev: amount should be lower than 10000
     percent = _value;
   }
 
@@ -241,8 +243,10 @@ contract ComChainCurrency is owned {
 
   /* Set the tax percentage for transaction to a buisness (1) account */
   function setTaxPercentLeg(int16 _value) public onlyOwner {
-    if (_value < 0) revert();
-    if (_value > 10000) revert();
+    if (_value < 0)
+        revert(); // dev: amount should be greater than 0
+    if (_value > 10000)
+        revert(); // dev: amount should be lower than 10000
     percentLeg = _value;
   }
 
@@ -299,8 +303,8 @@ contract ComChainCurrency is owned {
             revert(); // dev: permission denied
     }
 
-    // Replaced account cannot be modified
-    if (newAddress[_targetAccount]!=address(0)) revert();
+    if (newAddress[_targetAccount] != address(0))
+        revert(); // dev: replaced account cannot be modified
 
     accountStatus[_targetAccount] = _accountStatus;
 
@@ -325,9 +329,12 @@ contract ComChainCurrency is owned {
 
   function AllowReplaceBy(address target) public payable {
      if (!actif) revert();                                                      // panic lock
-     if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
-     if (!IsActive(msg.sender)) revert();                                       // locked account cannot be replaced
-     if (accountAlreadyUsed[target]==true) revert();                            // only new account can be a replacement target
+     if (newAddress[msg.sender]!=address(0))
+         revert(); // dev: already replaced account cannot be replaced again
+     if (!IsActive(msg.sender))
+         revert(); // dev: locked account cannot be replaced
+     if (accountAlreadyUsed[target]==true)
+         revert(); // dev: only new account can be target of a replacement
      if (ReplacementRequestNumber[msg.sender]>2) revert();                      // limit the number of replacement request possible
 
      if (requestReplacementTo[target]!=address(0)) {                            // Cancel replacement request if exists
@@ -362,13 +369,18 @@ contract ComChainCurrency is owned {
 
   function AcceptReplaceAccount() public {
      if (!actif) revert();                                                      // panic lock
-     if (accountAlreadyUsed[msg.sender]==true) revert();                        // only new account can be a replacement target
+     if (accountAlreadyUsed[msg.sender]==true)
+         revert(); // dev: only new account can be a replacement target
 
-     if (requestReplacementTo[msg.sender]==address(0)) revert();                // only existing request can be treated
+     if (requestReplacementTo[msg.sender] == address(0))
+         revert(); // dev: only existing request can be treated
+
      address original_account = requestReplacementTo[msg.sender];
 
-     if (newAddress[original_account]!=address(0)) revert();                     // Already replaced account cannot be replaced again
-     if (!IsActive(original_account)) revert();                                  // locked account cannot be replaced
+     if (newAddress[original_account]!=address(0))
+         revert(); // dev: already replaced account cannot be replaced again
+     if (!IsActive(original_account))
+         revert(); // dev: locked account cannot be replaced
 
      // transfert the type (and ownership if needed)
      use(msg.sender);
