@@ -26,10 +26,10 @@ Account management includes:
 
 ## Configuration
 
-- If you are planning to use the contract withing the Com-Chain
+- If you are planning to use the contract within the Com-Chain
   framework, you must keep the function signature.
 
-- Unused function can have their body replaced by a revert() statment.
+- Unused function can have their body replaced by a revert() statement.
 
 - You should choose in the pledge function between two check: one is
   checking for overflow, the second also check for non-negative
