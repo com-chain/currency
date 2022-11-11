@@ -52,3 +52,11 @@ Account management includes:
 
 If you can think of any other features or run into bugs, let us
 know. You can drop a line at it {at} monnaie {-} leman dot org.
+
+## Test
+
+Run the tests with:
+
+```shell
+brownie test
+```
