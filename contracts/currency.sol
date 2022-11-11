@@ -55,7 +55,7 @@ contract ComChainCurrency is owned {
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
 
-  bool public AutomaticUnlock = false;
+  bool public automaticUnlock = false;
 
   /* Tax on the transactions  */
   /*    payed to "Person" (0) account  */
@@ -177,8 +177,8 @@ contract ComChainCurrency is owned {
   }
 
   /* Manage the Automatic Unlock */
-  function setAutomaticUnlock(bool new_auto_unlock) public onlyOwner {
-    AutomaticUnlock = new_auto_unlock;
+  function setAutomaticUnlock(bool newAutomaticUnlock) public onlyOwner {
+    automaticUnlock = newAutomaticUnlock;
   }
 
   /* Set the threshold to refill an account (in ETH)*/
@@ -257,10 +257,10 @@ contract ComChainCurrency is owned {
      return  balanceEL[_from] + balanceCM[_from];
   }
 
-  function IsActive(address target) internal constant returns (bool result) {
+  function isActive(address target) internal constant returns (bool result) {
     if (accountStatus[target]) {
       return true;
-    } else if (AutomaticUnlock && !accountAlreadyUsed[target]) {
+    } else if (automaticUnlock && !accountAlreadyUsed[target]) {
       return true;
     } else {
       return false;
@@ -270,7 +270,7 @@ contract ComChainCurrency is owned {
   /* change the accountAlreadyUsed */
   function use(address add) internal {
     // unlock if needed
-    if (AutomaticUnlock && !accountAlreadyUsed[add]) {
+    if (automaticUnlock && !accountAlreadyUsed[add]) {
       accountStatus[add] = true;
     }
 
@@ -329,11 +329,11 @@ contract ComChainCurrency is owned {
     topUp(_targetAccount);
   }
 
-  function AllowReplaceBy(address target) public payable {
+  function allowReplaceBy(address target) public payable {
      if (!actif) revert();                                                      // panic lock
      if (newAddress[msg.sender]!=address(0))
          revert(); // dev: already replaced account cannot be replaced again
-     if (!IsActive(msg.sender))
+     if (!isActive(msg.sender))
          revert(); // dev: locked account cannot be replaced
      if (accountAlreadyUsed[target]==true)
          revert(); // dev: only new account can be target of a replacement
@@ -369,7 +369,7 @@ contract ComChainCurrency is owned {
 
   /* replace the current account by a new one transfering its content */
 
-  function AcceptReplaceAccount() public {
+  function acceptReplaceAccount() public {
      if (!actif) revert();                                                      // panic lock
      if (accountAlreadyUsed[msg.sender]==true)
          revert(); // dev: only new account can be a replacement target
@@ -381,7 +381,7 @@ contract ComChainCurrency is owned {
 
      if (newAddress[original_account]!=address(0))
          revert(); // dev: already replaced account cannot be replaced again
-     if (!IsActive(original_account))
+     if (!isActive(original_account))
          revert(); // dev: locked account cannot be replaced
 
      // transfer the type (and ownership if needed)
@@ -501,9 +501,9 @@ contract ComChainCurrency is owned {
       // Check that only super admin (2) or pledge admin (3) can pledge
     if (accountType[msg.sender] < 2 || accountType[msg.sender] > 3)
         revert(); // dev: permission denied
-    if (!IsActive(msg.sender))
+    if (!isActive(msg.sender))
         revert(); // dev: disabled accounts can't pledge
-    if (!IsActive(_to)) revert();  // dev: disabled accounts can't receive pledge
+    if (!isActive(_to)) revert();  // dev: disabled accounts can't receive pledge
     // if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
     if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
    // if (newAddress[_to]!=address(0)) revert();                                  // Replaced account cannot be pledged
@@ -576,8 +576,8 @@ contract ComChainCurrency is owned {
   function payNant(address _from,address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
 
-    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
-    if (!IsActive(_to)) revert();
+    if (!isActive(_from)) revert();  //Check neither of the Account are locked
+    if (!isActive(_to)) revert();
 
     // compute the tax
     int16 tax_percent = percent;
@@ -607,8 +607,8 @@ contract ComChainCurrency is owned {
   /* INTERNAL - Mutual Credit (Barter) transfer  */
   function payCM(address _from, address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
-    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
-    if (!IsActive(_to)) revert();
+    if (!isActive(_from)) revert();  //Check neither of the Account are locked
+    if (!isActive(_to)) revert();
 
     // compute the tax
     int16 tax_percent = percent;
@@ -674,7 +674,7 @@ contract ComChainCurrency is owned {
   /* Allow _spender to withdraw from your account, multiple times, up to the _value amount.  */
   /* If called again the _amount is added to the allowance, if amount is negatif the allowance is deleted  */
   function approve(address _spender, int256 _amount) public returns (bool success) {
-    if (!IsActive(msg.sender)) revert();  // Check the sender not to be blocked
+    if (!isActive(msg.sender)) revert();  // Check the sender not to be blocked
 
 
     if (_amount>=0){
@@ -735,8 +735,8 @@ contract ComChainCurrency is owned {
 
   /* INTERNAL - Allow the spender to decrasse the allowance */
   function updateAllowed(address _from, address _to, int256 _value) internal {
-    if (!IsActive(msg.sender)) revert();      // Ensure that accounts are not locked
-    if (!IsActive(_from)) revert();
+    if (!isActive(msg.sender)) revert();      // Ensure that accounts are not locked
+    if (!isActive(_from)) revert();
     if (msg.sender != _to) revert();                // Ensure that the message come from the _spender
     if (_value > 0) revert();                       // Ensure that the allowance cannot de augmented
     if (allowed[_from][_to] + _value < 0) revert(); // Ensure that the resulting allowance is not <0
@@ -783,7 +783,7 @@ contract ComChainCurrency is owned {
   /* Allow _spender to pay on behalf of you from your account, multiple times, each transaction bellow the limit. */
   /* If called again the limit is replaced by the new _amount, if _amount is 0 the delegation is removed */
   function delegate(address _spender, int256 _amount) public {
-    if (!IsActive(msg.sender)) revert();
+    if (!isActive(msg.sender)) revert();
 
     if (_amount>0){
         if (delegated[msg.sender][_spender] == 0) {
@@ -874,7 +874,7 @@ contract ComChainCurrency is owned {
   /****** Payment Request *******/
   /* Add Request*/
   function insertRequest( address _from,  address _to, int256 _amount) public {
-    if (!IsActive(_to)) revert(); // Check the creator not to be blocked
+    if (!isActive(_to)) revert(); // Check the creator not to be blocked
 
     if (requested[_from][_to] == 0) {
       reqMap[_from].push(_to);
@@ -890,8 +890,8 @@ contract ComChainCurrency is owned {
 
   /* INTERNAL - Allow the account who pay to decrasse the request amount */
   function updateRequested(address _from, address _to, int256 _value) internal {
-    if (!IsActive(msg.sender)) revert();               // Ensure that accounts are not locked
-    if (!IsActive(_to)) revert();
+    if (!isActive(msg.sender)) revert();               // Ensure that accounts are not locked
+    if (!isActive(_to)) revert();
     if (msg.sender != _from) revert();                // Ensure that the message come from the account who pay
     if (_value > 0) revert();                         // Ensure that the request cannot de augmented
     if (requested[_from][_to] + _value < 0) revert(); // Ensure that the resulting request is not <0
@@ -1044,7 +1044,7 @@ contract ComChainCurrency is owned {
 
   /* Discard a payement request put it into the rejected request. */
   function cancelRequest(address _to)public {
-    if (!IsActive(msg.sender)) revert();
+    if (!isActive(msg.sender)) revert();
     int256 amount = requested[msg.sender][_to];
     if (amount>0){
         if (rejected[_to][msg.sender] == 0) {
@@ -1062,7 +1062,7 @@ contract ComChainCurrency is owned {
 
   /* Discard acceptation information */
   function discardAcceptedInfo(address _spender) public {
-    if (!IsActive(msg.sender)) revert();
+    if (!isActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<acceptedMap[msg.sender].length; i++){
         if (!found && acceptedMap[msg.sender][i] == _spender){
@@ -1085,7 +1085,7 @@ contract ComChainCurrency is owned {
 
   /* Discard rejected incormation */
   function discardRejectedInfo(address _spender)public{
-    if (!IsActive(msg.sender)) revert();
+    if (!isActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<rejectedMap[msg.sender].length; i++){
         if (!found && rejectedMap[msg.sender][i] == _spender){
