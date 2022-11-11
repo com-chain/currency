@@ -71,7 +71,7 @@ contract ComChainCurrency is owned {
   /* And the number of ether to be added */
   uint256 public refillSupply   = 1;
 
-  /* Panic button: allows to block any currency transfert */
+  /* Panic button: allows to block any currency transfer */
   bool public actif            = true;
 
   /*  For initialization purpose: */
@@ -124,7 +124,7 @@ contract ComChainCurrency is owned {
   event DebitLimitChange(uint256 time, address target, int256 amount);
   event Refilled(uint256 time, address target, uint256 balance, uint256 limit);
 
-  /* Token transfert */
+  /* Token transfer */
   event Pledge(uint256 time, address indexed to, int256 recieved);
   event Transfer(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 recieved);
   event TransferCredit(uint256 time, address indexed from, address indexed to, int256 sent, int256 tax, int256 recieved);
@@ -168,7 +168,7 @@ contract ComChainCurrency is owned {
   }
 
   /***** Contract administration *******/
-  /* Transfert ownership */
+  /* Transfer ownership */
   function transferOwnership(address newOwner) public onlyOwner {
     accountType[newOwner] = 2;
     accountStatus[newOwner] = true;
@@ -191,7 +191,7 @@ contract ComChainCurrency is owned {
     total = amountPledged;
   }
 
-  /* Panic button: allows to block any currency transfert */
+  /* Panic button: allows to block any currency transfer */
   function setContractStatus(bool _actif) public onlyOwner {
       actif=_actif;
   }
@@ -384,7 +384,7 @@ contract ComChainCurrency is owned {
      if (!IsActive(original_account))
          revert(); // dev: locked account cannot be replaced
 
-     // transfert the type (and ownership if needed)
+     // transfer the type (and ownership if needed)
      use(msg.sender);
      accountStatus[msg.sender] = true;
      if (original_account == owner) {                                            // if the replaced account is the contract owner transfert the priviledge
@@ -394,7 +394,7 @@ contract ComChainCurrency is owned {
         accountType[msg.sender] = accountType[original_account];
      }
 
-     // transfert the values and limit
+     // transfer the values and limit
      balanceEL[msg.sender] = balanceEL[original_account];
      balanceEL[original_account] = 0;
      balanceCM[msg.sender] = balanceCM[original_account];
@@ -404,9 +404,7 @@ contract ComChainCurrency is owned {
      limitDebit[msg.sender] = limitDebit[original_account];
      limitDebit[original_account] = 0;
 
-
-
-     // transfert the allowance from the replaced account
+     // transfer the allowance from the replaced account
      for (uint index=0; index<allowMap[original_account].length; index++) {
         address spender = allowMap[original_account][index];
         int256 amount = allowed[original_account][spender];
@@ -419,7 +417,7 @@ contract ComChainCurrency is owned {
             myAllowed[spender][original_account] = 0;
         }
      }
-     // transfert the allowance to the replaced account
+     // transfer the allowance to the replaced account
      for (index=0; index < myAllowMap[original_account].length; index++) {
         address allower = myAllowMap[original_account][index];
         amount = myAllowed[original_account][allower];
@@ -433,7 +431,7 @@ contract ComChainCurrency is owned {
         }
      }
 
-     // transfert the autorization from the replaced account
+     // transfer the autorization from the replaced account
       for (index=0; index<delegMap[original_account].length; index++) {
         address delegate = delegMap[original_account][index];
         amount = delegated[original_account][delegate];
@@ -447,7 +445,7 @@ contract ComChainCurrency is owned {
         }
      }
 
-     // transfert the autorization to the replaced account
+     // transfer the autorization to the replaced account
      for (index=0; index < myDelegMap[original_account].length; index++) {
         address delegetor = myDelegMap[original_account][index];
         amount = myDelegated[original_account][delegetor];
@@ -461,7 +459,7 @@ contract ComChainCurrency is owned {
         }
      }
 
-     // transfert the payment requet made by the replaced account
+     // transfer the payment requet made by the replaced account
      for (index=0; index<reqMap[original_account].length; index++) {
         address debitor = reqMap[original_account][index];
         amount = requested[original_account][debitor];
@@ -474,7 +472,7 @@ contract ComChainCurrency is owned {
             myRequested[debitor][original_account] = 0;
         }
      }
-     // transfert the payment requet made to the replaced account
+     // transfer the payment requet made to the replaced account
      for (index=0; index < myReqMap[original_account].length; index++) {
         address requestor = myReqMap[original_account][index];
         amount = myRequested[original_account][requestor];
@@ -497,7 +495,7 @@ contract ComChainCurrency is owned {
   }
 
 
-  /****** Coin and Barter transfert *******/
+  /****** Coin and Barter transfer *******/
   /* Coin creation (Nantissement) */
   function pledge(address _to, int256 _value)  public {
       // Check that only super admin (2) or pledge admin (3) can pledge
@@ -530,20 +528,20 @@ contract ComChainCurrency is owned {
    payCM(msg.sender,_to,_value);
   }
 
-  /* Transfert "on behalf of" of Coin and Mutual Credit (delegation) */
-  /* Make Transfert "on behalf of" in coins*/
+  /* Transfer "on behalf of" of Coin and Mutual Credit (delegation) */
+  /* Make Transfer "on behalf of" in coins*/
   function transferOnBehalfOf(address _from, address _to, int256 _value)public  {
     if (delegated[_from][msg.sender] < _value) revert();
     payNant(_from,_to,_value);
   }
 
-  /* Make  Transfert "on behalf of" in Mutual Credit */
+  /* Make  Transfer "on behalf of" in Mutual Credit */
   function transferCMOnBehalfOf(address _from, address _to, int256 _value)public {
     if (delegated[_from][msg.sender] < _value) revert();
     payCM(_from,_to,_value);
   }
 
-  /* Transfert request of Coin and Mutual Credit (delegation & pay request)*/
+  /* Transfer request of Coin and Mutual Credit (delegation & pay request)*/
   // Send _value Coin from address _from to the sender
   function transferFrom(address _from, int256 _value) public {
    if (allowed[_from][msg.sender] >= _value && balanceEL[_from]>=_value) {
@@ -574,7 +572,7 @@ contract ComChainCurrency is owned {
 
 
 
-  /* INTERNAL - Coin transfert  */
+  /* INTERNAL - Coin transfer  */
   function payNant(address _from,address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
 
@@ -594,7 +592,7 @@ contract ComChainCurrency is owned {
     if (!checkEL(_from, amount + tax)) revert(); // check coin availability
     if (balanceEL[_to] + amount < balanceEL[_to]) revert(); //overflow check
 
-    // Do the transfert
+    // Do the transfer
     balanceEL[_from] -= amount + tax;         // Subtract from the sender
     balanceEL[_to] += amount;
     balanceEL[txAddr] += tax;
@@ -606,7 +604,7 @@ contract ComChainCurrency is owned {
     topUp(_from);
   }
 
-  /* INTERNAL - Mutual Credit (Barter) transfert  */
+  /* INTERNAL - Mutual Credit (Barter) transfer  */
   function payCM(address _from, address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
     if (!IsActive(_from)) revert();  //Check neither of the Account are locked
@@ -627,7 +625,7 @@ contract ComChainCurrency is owned {
     if (!checkCMMax(_to, amount)) revert();
     if (balanceCM[_to] + amount < balanceCM[_to]) revert(); //overflow check
 
-    // Do the transfert
+    // Do the transfer
     balanceCM[_from] -= amount + tax;         // Subtract from the sender
     balanceCM[_to] += amount;
     balanceCM[txAddr] += tax;
@@ -639,7 +637,7 @@ contract ComChainCurrency is owned {
     topUp(_from);
   }
 
-  /* INTERNAL - Check the sender has enough coin to do the transfert */
+  /* INTERNAL - Check the sender has enough coin to do the transfer */
   function checkEL(address _addr, int256 _value) internal view returns (bool)  {
     int256 checkBalance = balanceEL[_addr] - _value;
     if (checkBalance < 0) {
