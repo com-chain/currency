@@ -299,8 +299,10 @@ contract ComChainCurrency is owned {
 
     // Ensure that the sender is a super admin or a property admin and is not blocked
     if (msg.sender!=owner){
-        if (accountType[msg.sender] < 2  || accountType[msg.sender] == 3 || !accountStatus[msg.sender])
+        if (accountType[msg.sender] < 2  || accountType[msg.sender] == 3)
             revert(); // dev: permission denied
+        if (!accountStatus[msg.sender])
+            revert(); // dev: disabled accounts can't set account params
     }
 
     if (newAddress[_targetAccount] != address(0))
