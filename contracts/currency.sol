@@ -153,6 +153,7 @@ contract ComChainCurrency is owned {
     if (firstAdmin == false) revert();
     accountType[owner] = 2;
     accountStatus[owner] = true;
+    accountAlreadyUsed[owner] = true;
     firstAdmin = false;
   }
 
@@ -171,6 +172,7 @@ contract ComChainCurrency is owned {
   function transferOwnership(address newOwner) public onlyOwner {
     accountType[newOwner] = 2;
     accountStatus[newOwner] = true;
+    accountAlreadyUsed[newOwner] = true;
     owner = newOwner;
   }
 
