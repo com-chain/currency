@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity  >=0.4.18 <0.4.23;
 
 /********************************************************
 
@@ -48,12 +48,14 @@ contract owned {
 contract _template_ is owned {
 
   /* Name and symbol (for ComChain internal use) */
-  string  public standard       = '_template_';
-  string  public name           = "_name_";
-  string  public symbol         = "_symbol_"; 
-  
+  string  public name           = "";
+  string  public symbol         = ""; 
+  string  public version        = "2.0";
+
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
+
+  bool public AutomaticUnlock = false;
   
   /* Tax on the transactions  */
   /*    payed to "Person" (0) account  */
@@ -65,9 +67,9 @@ contract _template_ is owned {
 
   /* Ensure that the accounts have enough ether to pass transactions */
   /* For this it define the limit bellow which ether is added to the account */
-  uint256 minBalanceForAccounts = 1000000000000000000;  
+  uint256 minBalanceForAccounts = 100000000000000000;  
   /* And the number of ether to be added */  
-  uint256 public refillSupply   = 2;
+  uint256 public refillSupply   = 1;
   
   /* Panic button: allows to block any currency transfert */
   bool public actif            = true;
@@ -76,12 +78,16 @@ contract _template_ is owned {
   bool firstAdmin              = true;
 
   /* Account property: */
-  mapping (address => int256) public accountType;               // Account type 2 = special account 1 = Business 0 = Personal
-  mapping (address => bool) public accountStatus;               // Account status
+  mapping (address => int256) public accountType;               // Account type 4 = Property Admin, 3 = Pledge Admin, 2 = Super Admin, 1 = Business, 0 = Personal
+  mapping (address => bool) public accountStatus;               // Account status 
+  mapping (address => bool) public accountAlreadyUsed;          // if False the account is new
   mapping (address => int256) public balanceEL;                 // Balance in coins
   mapping (address => int256) public balanceCM;                 // Balance in Mutual credit
   mapping (address => int256) public limitCredit;               // Min limit (minimal accepted CM amount expected to be 0 or <0 )
   mapping (address => int256) public limitDebit;                // Max limit  (maximal accepted CM amount expected to be 0 or >0 )
+  mapping (address => int256) public ReplacementRequestNumber;  // Count the replacement request for a given account
+  mapping (address => address) public requestReplacementFrom;   // Pending replacement request the key is the Account to be replaced
+  mapping (address => address) public newAddress;               // Address which replaces the current one
   
   /* Allowance, Authorization and Request:*/
   
@@ -127,22 +133,26 @@ contract _template_ is owned {
   event Delegation(uint256 time, address indexed from, address indexed to, int256 value);
   
   event Rejection(uint256 time, address indexed from, address indexed to, int256 value);
+  
+  /* Account being replaced by a new one */
+  event AccountReplaced(uint256 time, address indexed oldAdd, address indexed newAdd, int256 indexed accstatus);
 
   /****************************************************************************/ 
   /***** Contract creation *******/
   /* Initializes contract */
-   constructor(address taxAddress, int8 taxPercent, int8 taxPercentLeg) public {
-    txAddr = taxAddress;
-    percent = taxPercent;
-    percentLeg = taxPercentLeg;
+   constructor(string _name, string _symbol) public {
+    txAddr = msg.sender;
+    name = _name;
+    symbol = _symbol;
     setFirstAdmin();
   }
   
-  /* INTERNAL - Set the first admin and ensure that this account is of the good type and actif.*/
+  /* INTERNAL - Set the first super admin (2) and ensure that this account is of the good type and actif.*/
   function setFirstAdmin() internal {
     if (firstAdmin == false) revert();
     accountType[owner] = 2;
     accountStatus[owner] = true;
+    use(owner);
     firstAdmin = false;
   }
   
@@ -161,7 +171,13 @@ contract _template_ is owned {
   function transferOwnership(address newOwner) public onlyOwner {
     accountType[newOwner] = 2;
     accountStatus[newOwner] = true;
+    use(newOwner);
     owner = newOwner;
+  }
+
+  /* Manage the Automatic Unlock */
+  function setAutomaticUnlock(bool new_auto_unlock) public onlyOwner {
+    AutomaticUnlock = new_auto_unlock;
   }
   
   /* Set the threshold to refill an account (in ETH)*/
@@ -235,47 +251,234 @@ contract _template_ is owned {
   function balanceOf(address _from) public constant returns (int256 amount){
      return  balanceEL[_from] + balanceCM[_from];
   }
+
+  function IsActive(address target) internal constant returns (bool result) {
+    if (accountStatus[target]) {
+      return true;
+    } else if (AutomaticUnlock && !accountAlreadyUsed[target]) {
+      return true;
+    } else {
+      return false;
+    }
+  } 
+
+  /* change the accountAlreadyUsed */
+  function use(address add) internal {
+    // unlock if needed
+    if (AutomaticUnlock && !accountAlreadyUsed[add]) {
+      accountStatus[add] = true;
+    }
+
+    accountAlreadyUsed[add] = true;
+  }   
+
+  function resetReplacementRequestNumber(address account) public {
+     if (msg.sender!=owner){
+        if ((accountType[msg.sender] != 2  && accountType[msg.sender] != 3)  || !accountStatus[msg.sender]) revert();
+    }
+    ReplacementRequestNumber[account] = 0;
+
+    // ensure the ETH level of the account
+    refill();
+    topUp(account);
+  }  
+
   
   /* Change account's property */  
   function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
   
-    // Ensure that the sender is an admin and is not blocked
+    // Ensure that the sender is an a super admin or a property admin, and is not blocked
     if (msg.sender!=owner){
-        if (accountType[msg.sender] < 2  || !accountStatus[msg.sender]) revert();
+        if (accountType[msg.sender] < 2  || accountType[msg.sender] == 3 || !accountStatus[msg.sender]) revert();
     }
+    
+    // Replaced account cannot be modified
+    if (newAddress[_targetAccount]!=address(0)) revert();
     
     accountStatus[_targetAccount] = _accountStatus;
     
-    // Prevent changing the Type of an Admin (2) account
+    // Prevent changing the Type of a super Admin (2) account
     if (accountType[_targetAccount] != 2){
         limitDebit[_targetAccount] = _debitLimit;
-        limitCredit[_targetAccount] = _creditLimit;
-        
+        limitCredit[_targetAccount] = _creditLimit;   
     }
-    accountType[_targetAccount] = _accountType;
+
+    if (_targetAccount!=owner) {
+        accountType[_targetAccount] = _accountType;
+    }
+    
+    use(_targetAccount);
     
     emit SetAccountParams(now, _targetAccount, _accountStatus, accountType[_targetAccount], limitDebit[_targetAccount],  limitCredit[_targetAccount]);
     
     // ensure the ETH level of the account
+    refill();
     topUp(_targetAccount);
-    topUp(msg.sender);
+  }
+
+  function AllowReplaceBy(address target) public payable {
+     if (!actif) revert();                                                      // panic lock
+     if (newAddress[msg.sender]!=address(0)) revert();                          // Already replaced account cannot be replaced again
+     if (!IsActive(msg.sender)) revert();                                       // locked account cannot be replaced
+     if (accountAlreadyUsed[target]==true) revert();                            // only new account can be a replacement target
+     if (ReplacementRequestNumber[msg.sender]>2) revert();                      // limit the number of replacement request possible
+
+     requestReplacementFrom[msg.sender] = target;                                // register the request   
+
+     ReplacementRequestNumber[msg.sender]+=1;
+     topUp(target);                                                            // ensure targuet has eth to accept the request
+  } 
+
+  function CancelReplaceBy() public  {
+     if (!actif) revert();                                                      // panic lock
+     if (!IsActive(msg.sender)) revert();                                       // locked account cannot be replaced
+     if (requestReplacementFrom[msg.sender]!=address(0)) {                      // Cancel replacement request if exists
+       requestReplacementFrom[msg.sender]=address(0);
+       refill();  
+     }
+  }
+  
+  
+  /* replace the current account by a new one transfering its content */
+  
+  function AcceptReplaceAccount(address original_account) public {
+     if (!actif) revert();                                                      // panic lock
+     if (requestReplacementFrom[original_account]!= msg.sender) revert();       // Check the request exists                                          
+     if (accountAlreadyUsed[msg.sender]==true                                   // only new account can be a replacement target
+         || newAddress[original_account]!=address(0)                            // Already replaced account cannot be replaced again
+         || !IsActive(original_account)) {                                      // locked account cannot be replaced
+         requestReplacementFrom[original_account]=address(0);                  //     Cancel the outdated request    
+     } else {
+        // transfert the type (and ownership if needed)
+        use(msg.sender);
+        accountStatus[msg.sender] = true;
+        if (original_account == owner) {                                        // if the replaced account is the contract owner transfert the priviledge
+            accountType[msg.sender] = 2;
+            owner = msg.sender;
+        } else {
+            accountType[msg.sender] = accountType[original_account]; 
+        }
+        
+        // transfert the values and limit
+        balanceEL[msg.sender] = balanceEL[original_account];
+        balanceEL[original_account] = 0;
+        balanceCM[msg.sender] = balanceCM[original_account];
+        balanceCM[original_account] = 0;
+        limitCredit[msg.sender] = limitCredit[original_account];
+        limitCredit[original_account] = 0;
+        limitDebit[msg.sender] = limitDebit[original_account];
+        limitDebit[original_account] = 0;
+        
+        
+      
+        // transfert the allowance from the replaced account
+        for (uint index=0; index<allowMap[original_account].length; index++) {
+            address spender = allowMap[original_account][index];
+            int256 amount = allowed[original_account][spender];
+            if (amount > 0) {
+                allowMap[msg.sender].push(spender);
+                myAllowMap[spender].push(msg.sender);
+                allowed[msg.sender][spender] = amount;
+                allowed[original_account][spender] = 0;
+                myAllowed[spender][msg.sender] = amount;
+                myAllowed[spender][original_account] = 0;
+            } 
+        }
+        // transfert the allowance to the replaced account
+        for (index=0; index < myAllowMap[original_account].length; index++) {
+            address allower = myAllowMap[original_account][index];
+            amount = myAllowed[original_account][allower];
+            if (amount > 0) {
+                allowMap[allower].push(msg.sender);
+                myAllowMap[msg.sender].push(allower);
+                allowed[allower][msg.sender] = amount;
+                allowed[allower][original_account] = 0;
+                myAllowed[msg.sender][allower] = amount;
+                myAllowed[original_account][allower] = 0;
+            } 
+        }
+      
+        // transfert the autorization from the replaced account
+          for (index=0; index<delegMap[original_account].length; index++) {
+            address delegate = delegMap[original_account][index];
+            amount = delegated[original_account][delegate];
+            if (amount > 0) {
+                delegMap[msg.sender].push(delegate);
+                myDelegMap[delegate].push(msg.sender);
+                delegated[msg.sender][delegate] = amount;
+                delegated[original_account][delegate] = 0;
+                myDelegated[delegate][msg.sender] = amount;
+                myDelegated[delegate][original_account] = 0;
+            } 
+        }
+        
+        // transfert the autorization to the replaced account
+        for (index=0; index < myDelegMap[original_account].length; index++) {
+            address delegetor = myDelegMap[original_account][index];
+            amount = myDelegated[original_account][delegetor];
+            if (amount > 0) {
+                delegMap[delegetor].push(msg.sender);
+                myDelegMap[msg.sender].push(delegetor);
+                delegated[delegetor][msg.sender] = amount;
+                delegated[delegetor][original_account] = 0;
+                myDelegated[msg.sender][delegetor] = amount;
+                myDelegated[original_account][delegetor] = 0;
+            } 
+        }
+        
+        // transfert the payment requet made by the replaced account
+        for (index=0; index<reqMap[original_account].length; index++) {
+            address debitor = reqMap[original_account][index];
+            amount = requested[original_account][debitor];
+            if (amount > 0) {
+                reqMap[msg.sender].push(debitor);
+                myReqMap[debitor].push(msg.sender);
+                requested[msg.sender][debitor] = amount;
+                requested[original_account][debitor] = 0;
+                myRequested[debitor][msg.sender] = amount;
+                myRequested[debitor][original_account] = 0;
+            } 
+        }
+        // transfert the payment requet made to the replaced account
+        for (index=0; index < myReqMap[original_account].length; index++) {
+            address requestor = myReqMap[original_account][index];
+            amount = myRequested[original_account][requestor];
+            if (amount > 0) {
+                reqMap[requestor].push(msg.sender);
+                myReqMap[msg.sender].push(requestor);
+                requested[requestor][msg.sender] = amount;
+                requested[requestor][original_account] = 0;
+                myRequested[msg.sender][requestor] = amount;
+                myRequested[original_account][requestor] = 0;
+            } 
+        }
+        
+        // NOTE: Already payed or rejected payment request are not transfered!
+        
+        // lock the old account and emit event
+        newAddress[original_account] = msg.sender;
+        accountStatus[original_account] = false;
+        emit AccountReplaced(now, original_account, msg.sender, accountType[msg.sender]);
+     }
   }
   
  
   /****** Coin and Barter transfert *******/ 
   /* Coin creation (Nantissement) */
   function pledge(address _to, int256 _value)  public {
-    if (accountType[msg.sender] < 2) revert();                                  // Check that only Special Accounts (2) can pledge
-    if (!accountStatus[msg.sender]) revert();                                   // Check that only non-blocked account can pledge
-    if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
-    // if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
+    if (accountType[msg.sender] < 2 || accountType[msg.sender] > 3) revert();   // Check that only super admin (2) or pledge admin (3) can pledge
+    if (!IsActive(msg.sender)) revert();                                         // Check that only non-blocked account can pledge
+    // if (balanceEL[_to] + _value < 0) revert();                                  // Check for overflows
+    if (balanceEL[_to] + _value < balanceEL[_to] ) revert();                    // Check for overflows & avoid negative pledge
+   // if (newAddress[_to]!=address(0)) revert();                                  // Replaced account cannot be pledged
     balanceEL[_to] += _value;                                                   // Add the amount to the recipient
     amountPledged += _value;                                                    // and to the Money supply
-    
+    use(_to);
+
     emit Pledge(now, _to, _value);
     // ensure the ETH level of the account
+    refill();
     topUp(_to);
-    topUp(msg.sender);
   }
   
   
@@ -336,8 +539,9 @@ contract _template_ is owned {
   /* INTERNAL - Coin transfert  */
   function payNant(address _from,address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
-    if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
-    if (!accountStatus[_to]) revert();
+
+    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
+    if (!IsActive(_to)) revert();
     
     // compute the tax
     int16 tax_percent = percent;
@@ -356,7 +560,8 @@ contract _template_ is owned {
     balanceEL[_from] -= amount + tax;         // Subtract from the sender
     balanceEL[_to] += amount;    
     balanceEL[txAddr] += tax;
-     
+
+    use(_to);
     emit Transfer(now, _from, _to, amount+tax, tax, amount);        // Notify anyone listening that this transfer took place
     // ensure the ETH level of the account
     topUp(_to);
@@ -366,8 +571,8 @@ contract _template_ is owned {
   /* INTERNAL - Mutual Credit (Barter) transfert  */
   function payCM(address _from, address _to, int256 _value) internal {
     if (!actif) revert();  // panic lock
-    if (!accountStatus[_from]) revert();  //Check neither of the Account are locked
-    if (!accountStatus[_to]) revert();
+    if (!IsActive(_from)) revert();  //Check neither of the Account are locked
+    if (!IsActive(_to)) revert();
     
     // compute the tax
     int16 tax_percent = percent;
@@ -389,6 +594,7 @@ contract _template_ is owned {
     balanceCM[_to] += amount;    
     balanceCM[txAddr] += tax;
     
+    use(_to);
     emit TransferCredit(now, _from, _to, amount+tax, tax, amount);  // Notify anyone listening that this transfer took place
     // ensure the ETH level of the account
     topUp(_to);
@@ -432,7 +638,9 @@ contract _template_ is owned {
   /* Allow _spender to withdraw from your account, multiple times, up to the _value amount.  */
   /* If called again the _amount is added to the allowance, if amount is negatif the allowance is deleted  */
   function approve(address _spender, int256 _amount) public returns (bool success) {
-    if (!accountStatus[msg.sender]) revert(); // Check the sender not to be blocked
+    if (!IsActive(msg.sender)) revert();  // Check the sender not to be blocked
+
+   
     if (_amount>=0){
         if ( allowed[msg.sender][_spender] == 0 ) {
             allowMap[msg.sender].push(_spender);
@@ -482,15 +690,17 @@ contract _template_ is owned {
         }
     }
     emit Approval(now, msg.sender, _spender, _amount);
-    topUp(msg.sender);
+    use(_spender);
+    use(msg.sender);
+    refill();
     topUp(_spender);
     return true;
   }
   
   /* INTERNAL - Allow the spender to decrasse the allowance */
   function updateAllowed(address _from, address _to, int256 _value) internal {
-    if (!accountStatus[msg.sender]) revert();       // Ensure that accounts are not locked 
-    if (!accountStatus[_from]) revert();   
+    if (!IsActive(msg.sender)) revert();      // Ensure that accounts are not locked 
+    if (!IsActive(_from)) revert();
     if (msg.sender != _to) revert();                // Ensure that the message come from the _spender
     if (_value > 0) revert();                       // Ensure that the allowance cannot de augmented
     if (allowed[_from][_to] + _value < 0) revert(); // Ensure that the resulting allowance is not <0
@@ -537,7 +747,7 @@ contract _template_ is owned {
   /* Allow _spender to pay on behalf of you from your account, multiple times, each transaction bellow the limit. */
   /* If called again the limit is replaced by the new _amount, if _amount is 0 the delegation is removed */
   function delegate(address _spender, int256 _amount) public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     
     if (_amount>0){
         if (delegated[msg.sender][_spender] == 0) {
@@ -590,8 +800,7 @@ contract _template_ is owned {
         
         
     }
-    topUp(msg.sender);
-    topUp(_spender);
+    refill();
     emit Delegation(now, msg.sender, _spender, _amount);
   }
   
@@ -629,7 +838,7 @@ contract _template_ is owned {
   /****** Payment Request *******/ 
   /* Add Request*/
   function insertRequest( address _from,  address _to, int256 _amount) public {
-    if (!accountStatus[_to]) revert(); // Check the creator not to be blocked
+    if (!IsActive(_to)) revert(); // Check the creator not to be blocked
    
     if (requested[_from][_to] == 0) {
       reqMap[_from].push(_to);
@@ -645,8 +854,8 @@ contract _template_ is owned {
   
   /* INTERNAL - Allow the account who pay to decrasse the request amount */
   function updateRequested(address _from, address _to, int256 _value) internal {
-    if (!accountStatus[msg.sender]) revert();         // Ensure that accounts are not locked 
-    if (!accountStatus[_to]) revert();   
+    if (!IsActive(msg.sender)) revert();               // Ensure that accounts are not locked 
+    if (!IsActive(_to)) revert();  
     if (msg.sender != _from) revert();                // Ensure that the message come from the account who pay
     if (_value > 0) revert();                         // Ensure that the request cannot de augmented
     if (requested[_from][_to] + _value < 0) revert(); // Ensure that the resulting request is not <0
@@ -799,7 +1008,7 @@ contract _template_ is owned {
 
   /* Discard a payement request put it into the rejected request. */
   function cancelRequest(address _to)public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     int256 amount = requested[msg.sender][_to];
     if (amount>0){
         if (rejected[_to][msg.sender] == 0) {
@@ -817,7 +1026,7 @@ contract _template_ is owned {
   
   /* Discard acceptation information */
   function discardAcceptedInfo(address _spender) public {
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<acceptedMap[msg.sender].length; i++){
         if (!found && acceptedMap[msg.sender][i] == _spender){
@@ -840,7 +1049,7 @@ contract _template_ is owned {
   
   /* Discard rejected incormation */
   function discardRejectedInfo(address _spender)public{
-    if (!accountStatus[msg.sender]) revert();
+    if (!IsActive(msg.sender)) revert();
     bool found = false;
     for (uint i = 0; i<rejectedMap[msg.sender].length; i++){
         if (!found && rejectedMap[msg.sender][i] == _spender){
