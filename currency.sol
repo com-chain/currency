@@ -152,6 +152,7 @@ contract _template_ is owned {
     if (firstAdmin == false) revert();
     accountType[owner] = 2;
     accountStatus[owner] = true;
+    use(owner);
     firstAdmin = false;
   }
   
@@ -170,6 +171,7 @@ contract _template_ is owned {
   function transferOwnership(address newOwner) public onlyOwner {
     accountType[newOwner] = 2;
     accountStatus[newOwner] = true;
+    use(newOwner);
     owner = newOwner;
   }
 
