@@ -1,38 +1,54 @@
 # -*- coding: utf-8 -*-
 
-from .common import currency
+from .common import currency, Accounts, c
 
-from brownie import ComChainCurrency, accounts, reverts
+from brownie import reverts
 
 
-def test_pledge(currency):
-    assert currency.AutomaticUnlock() is False
+def test_automatic_unlock_base(Accounts, c):
+
+    assert c.automaticUnlock is False
+
+    owner = Accounts[0]
+    john = Accounts[1]
+    bob = Accounts[2]
 
     ## Can't pledge towards a non activated account
     with reverts("dev: disabled accounts can't receive pledge"):
-        currency.pledge(accounts[1], 100)
+        owner.pledge(john, 100)
 
-    assert currency.balanceOf(accounts[1]) == 0
+    assert c.balanceOf(john) == 0
 
-    currency.setAutomaticUnlock(True)
+    owner.setAutomaticUnlock(True)
 
     ## Can pledge towards a non-activated account
-    currency.pledge(accounts[1], 100)
+    owner.pledge(john, 100)
 
-    assert currency.balanceOf(accounts[1]) == 100
+    assert c.balanceOf(john) == 100
 
     ## can unset
-    currency.setAutomaticUnlock(False)
+    owner.setAutomaticUnlock(False)
 
     ## can still pledge for previously used account
-    currency.pledge(accounts[1], 100)
+    owner.pledge(john, 100)
 
-    assert currency.balanceOf(accounts[1]) == 200
+    assert c.balanceOf(john) == 200
 
     ## But can't pledge towards a new non-activated account
     with reverts("dev: disabled accounts can't receive pledge"):
-        currency.pledge(accounts[2], 100)
+        owner.pledge(bob, 100)
 
-    assert currency.balanceOf(accounts[2]) == 0
+    assert c.balanceOf(bob) == 0
 
+
+def test_automatic_unlock_permission(Accounts, c):
+
+    assert c.automaticUnlock is False
+
+    owner = Accounts[0]
+    john = Accounts[1]
+
+    ## Can't pledge towards a non activated account
+    with reverts("dev: require to be owner"):
+        john.setAutomaticUnlock(True)
 
