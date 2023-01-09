@@ -329,10 +329,11 @@ contract ComChainCurrency is owned {
   function CancelReplaceBy() public  {
      if (!actif) revert();                                                      // panic lock
      if (!isActive(msg.sender)) revert();                                       // locked account cannot be replaced
-     if (requestReplacementFrom[msg.sender]!=address(0)) {                      // Cancel replacement request if exists
-       requestReplacementFrom[msg.sender]=address(0);
-       refill();
-     }
+     if (requestReplacementFrom[msg.sender] == address(0))
+         revert();  // dev: no replacement request ongoing to cancel
+
+     requestReplacementFrom[msg.sender] = address(0);
+     refill();
   }
 
 
