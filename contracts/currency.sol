@@ -152,7 +152,6 @@ contract cccur is owned {
     if (firstAdmin == false) revert();
     accountType[owner] = 2;
     accountStatus[owner] = true;
-    accountAlreadyUsed[owner] = true;
     use(owner);
     firstAdmin = false;
   }
@@ -172,7 +171,6 @@ contract cccur is owned {
   function transferOwnership(address newOwner) public onlyOwner {
     accountType[newOwner] = 2;
     accountStatus[newOwner] = true;
-    accountAlreadyUsed[newOwner] = true;
     use(newOwner);
     owner = newOwner;
   }
