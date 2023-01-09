@@ -321,6 +321,8 @@ contract ComChainCurrency is owned {
          revert();  // dev: locked account cannot be replaced
      if (accountAlreadyUsed[target] == true)
          revert();  // dev: only new account can be target of a replacement
+     if (requestReplacementFrom[msg.sender] != address(0))
+         revert();  // dev: replacement request ongoing from this account
 
      requestReplacementFrom[msg.sender] = target;  // register the request
 
