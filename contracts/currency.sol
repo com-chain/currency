@@ -85,7 +85,6 @@ contract ComChainCurrency is owned {
   mapping (address => int256) public balanceCM;                 // Balance in Mutual credit
   mapping (address => int256) public limitCredit;               // Min limit (minimal accepted CM amount expected to be 0 or <0 )
   mapping (address => int256) public limitDebit;                // Max limit  (maximal accepted CM amount expected to be 0 or >0 )
-  mapping (address => int256) public ReplacementRequestNumber;  // Count the replacement request for a given account
   mapping (address => address) public requestReplacementFrom;   // Pending replacement request the key is the Account to be replaced
   mapping (address => address) public newAddress;               // Address which replaces the current one
 
@@ -278,18 +277,6 @@ contract ComChainCurrency is owned {
     accountAlreadyUsed[add] = true;
   }
 
-  function resetReplacementRequestNumber(address account) public {
-     if (msg.sender!=owner){
-        if ((accountType[msg.sender] != 2  && accountType[msg.sender] != 3)  || !accountStatus[msg.sender]) revert();
-    }
-    ReplacementRequestNumber[account] = 0;
-
-    // ensure the ETH level of the account
-    refill();
-    topUp(account);
-  }
-
-
   /* Change account's property */
   function setAccountParams(address _targetAccount, bool _accountStatus, int256 _accountType, int256 _debitLimit, int256 _creditLimit) public {
 
@@ -333,11 +320,9 @@ contract ComChainCurrency is owned {
          revert(); // dev: locked account cannot be replaced
      if (accountAlreadyUsed[target]==true)
          revert(); // dev: only new account can be target of a replacement
-     if (ReplacementRequestNumber[msg.sender]>2) revert();                      // limit the number of replacement request possible
 
      requestReplacementFrom[msg.sender] = target;                                // register the request
 
-     ReplacementRequestNumber[msg.sender]+=1;
      topUp(target);                                                            // ensure targuet has eth to accept the request
   }
 
