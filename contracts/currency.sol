@@ -36,7 +36,8 @@ contract owned {
   }
 
   modifier onlyOwner {
-    if (msg.sender != owner) revert();
+    if (msg.sender != owner)
+        revert();  // dev: require to be owner
     _;
   }
 }
@@ -340,7 +341,8 @@ contract ComChainCurrency is owned {
   /* replace the current account by a new one transfering its content */
   function acceptReplaceAccount(address original_account) public {
      if (!actif) revert();                                                      // panic lock
-     if (requestReplacementFrom[original_account]!= msg.sender) revert();       // Check the request exists
+     if (requestReplacementFrom[original_account] != msg.sender)
+         revert();  // dev: replacement request not initiated
      if (accountAlreadyUsed[msg.sender] == true         // only new account can be a replacement target
          || newAddress[original_account] != address(0)  // already replaced account cannot be replaced again
          || !isActive(original_account)) {              // locked account cannot be replaced
