@@ -2,7 +2,7 @@
 
 from .common import currency
 
-from brownie import ComChainCurrency, accounts, reverts
+from brownie import cccur, accounts, reverts
 
 
 def test_set_account_param(currency):

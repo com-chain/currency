@@ -2,7 +2,7 @@
 
 from .common import currency, Accounts, c
 
-from brownie import ComChainCurrency, accounts, reverts
+from brownie import cccur, accounts, reverts
 
 
 ## YYYvlab: check panic lock

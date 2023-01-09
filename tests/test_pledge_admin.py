@@ -2,9 +2,7 @@
 
 from .common import currency
 
-from brownie import ComChainCurrency, accounts, reverts
-
-
+from brownie import cccur, accounts, reverts
 
 
 def test_pledge(currency):

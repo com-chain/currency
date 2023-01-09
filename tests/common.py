@@ -2,7 +2,7 @@
 
 from pytest import fixture
 
-from brownie import ComChainCurrency, accounts, reverts
+from brownie import cccur, accounts, reverts
 from brownie.network.contract import ContractCall, ContractTx
 
 
@@ -67,7 +67,7 @@ class MkAccounts(object):
 
 @fixture(autouse=True)
 def currency():
-    return accounts[0].deploy(ComChainCurrency, "Broutzouf", "Br")
+    return accounts[0].deploy(cccur, "Broutzouf", "Br")
 
 
 @fixture

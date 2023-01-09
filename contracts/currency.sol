@@ -46,7 +46,7 @@ contract owned {
 /***********************************************
   Main contract.
 ***********************************************/
-contract ComChainCurrency is owned {
+contract cccur is owned {
 
   /* Name and symbol (for ComChain internal use) */
   string  public name           = "";
