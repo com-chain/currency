@@ -314,16 +314,16 @@ contract ComChainCurrency is owned {
 
   function allowReplaceBy(address target) public payable {
      if (!actif) revert();                                                      // panic lock
-     if (newAddress[msg.sender]!=address(0))
-         revert(); // dev: already replaced account cannot be replaced again
+     if (newAddress[msg.sender] != address(0))
+         revert();  // dev: already replaced account cannot be replaced again
      if (!isActive(msg.sender))
-         revert(); // dev: locked account cannot be replaced
-     if (accountAlreadyUsed[target]==true)
-         revert(); // dev: only new account can be target of a replacement
+         revert();  // dev: locked account cannot be replaced
+     if (accountAlreadyUsed[target] == true)
+         revert();  // dev: only new account can be target of a replacement
 
-     requestReplacementFrom[msg.sender] = target;                                // register the request
+     requestReplacementFrom[msg.sender] = target;  // register the request
 
-     topUp(target);                                                            // ensure targuet has eth to accept the request
+     topUp(target);                                // ensure targuet has eth to accept the request
   }
 
   function CancelReplaceBy() public  {
@@ -341,11 +341,11 @@ contract ComChainCurrency is owned {
   function acceptReplaceAccount(address original_account) public {
      if (!actif) revert();                                                      // panic lock
      if (requestReplacementFrom[original_account]!= msg.sender) revert();       // Check the request exists
-     if (accountAlreadyUsed[msg.sender]==true                                   // only new account can be a replacement target
-         || newAddress[original_account]!=address(0)                            // Already replaced account cannot be replaced again
-         || !isActive(original_account)) {                                      // locked account cannot be replaced
+     if (accountAlreadyUsed[msg.sender] == true         // only new account can be a replacement target
+         || newAddress[original_account] != address(0)  // already replaced account cannot be replaced again
+         || !isActive(original_account)) {              // locked account cannot be replaced
          // YYYvlab: if it is already address(0) ?
-         requestReplacementFrom[original_account]=address(0);                  //     Cancel the outdated request
+         requestReplacementFrom[original_account] = address(0);  // cancel the outdated request
      } else {
         // transfert the type (and ownership if needed)
         use(msg.sender);
