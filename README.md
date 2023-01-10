@@ -81,3 +81,19 @@ Run the tests with:
 ```shell
 brownie test
 ```
+
+## Get the signatures of the functions
+
+You must compile first with:
+
+```shell
+brownie compile
+```
+
+Then this will provide the list of all signatures
+
+```shell
+cat build/contracts/cccur.json |
+    jq '.abi[] | select(.name != null) |
+        ( .name + "(" + ([ .inputs[].type ] | join(",")) + ")"  )'
+```
