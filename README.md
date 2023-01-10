@@ -53,6 +53,27 @@ Account management includes:
 If you can think of any other features or run into bugs, let us
 know. You can drop a line at it {at} monnaie {-} leman dot org.
 
+## Install for developpement
+
+You should ensure you have a working `pipenv` [installed on your
+system](https://github.com/pypa/pipenv#installation).
+
+First, clone this source code, and from the root of the project, run:
+
+```shell
+pipenv install  ## only to be run the first time
+```
+
+This will gather python dependency to setup `brownie`.
+
+## Usage
+
+Remember to hop into the python local environment before using `brownie`:
+
+```shell
+pipenv shell  ## from root of the project
+```
+
 ## Test
 
 Run the tests with:
