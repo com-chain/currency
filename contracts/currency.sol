@@ -256,7 +256,9 @@ contract cccur is owned {
      return  balanceEL[_from] + balanceCM[_from];
   }
 
-  function isActive(address target) internal constant returns (bool result) {
+  function isActive(address target) public constant returns (bool result) {
+    if (requestReplacementFrom[msg.sender] != address(0))
+      return false;
     if (accountStatus[target]) {
       return true;
     } else if (automaticUnlock && !accountAlreadyUsed[target]) {
@@ -329,7 +331,6 @@ contract cccur is owned {
 
   function CancelReplaceBy() public  {
      if (!actif) revert();                                                      // panic lock
-     if (!isActive(msg.sender)) revert();                                       // locked account cannot be replaced
      if (requestReplacementFrom[msg.sender] == address(0))
          revert();  // dev: no replacement request ongoing to cancel
 

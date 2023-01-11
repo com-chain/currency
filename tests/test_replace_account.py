@@ -82,7 +82,7 @@ def test_replace_account_two_request(Accounts, c):
 
     john1.allowReplaceBy(john2)
 
-    with reverts("dev: replacement request ongoing from this account"):
+    with reverts("dev: locked account cannot be replaced"):
         john1.allowReplaceBy(john2)
 
 
