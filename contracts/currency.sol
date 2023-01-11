@@ -68,9 +68,9 @@ contract cccur is owned {
 
   /* Ensure that the accounts have enough ether to pass transactions */
   /* For this it define the limit bellow which ether is added to the account */
-  uint256 minBalanceForAccounts = 100000000000000000;
+  uint256 minBalanceForAccounts = 1 ether /100;
   /* And the number of ether to be added */
-  uint256 public refillSupply   = 1;
+  uint256 public refillSupply   = 10;
 
   /* Panic button: allows to block any currency transfer */
   bool public actif            = true;
@@ -180,9 +180,9 @@ contract cccur is owned {
     automaticUnlock = newAutomaticUnlock;
   }
 
-  /* Set the threshold to refill an account (in ETH)*/
+  /* Set the threshold to refill an account (in 0.001 ETH - initial contract value is same as calling this function with 10)*/
   function setRefillLimit(uint256 _minimumBalance) public onlyOwner {
-    minBalanceForAccounts = _minimumBalance * 1 ether;
+    minBalanceForAccounts = _minimumBalance * 1 ether / 1000;
   }
 
   /* Get the total amount of coin (Money supply) */
@@ -197,7 +197,7 @@ contract cccur is owned {
 
   /* INTERNAL - Top up function: Check that an account has enough ETH if not send some to it */
   function topUp(address _addr) internal {
-    uint amount = refillSupply * 1 ether;
+    uint amount = refillSupply * minBalanceForAccounts;
     if (_addr.balance < minBalanceForAccounts){
       if(_addr.send(amount)) {
         emit Refilled(now, _addr, _addr.balance, minBalanceForAccounts);
@@ -1026,6 +1026,9 @@ contract cccur is owned {
         emit Rejection(now, msg.sender, _to, amount);
         clear_request(msg.sender, _to);
     }
+    
+    
+    refill();
   }
 
 
@@ -1050,6 +1053,9 @@ contract cccur is owned {
          acceptedMap[msg.sender].length--;                                 // adjust the length of the mapping array
          accepted[msg.sender][_spender] = 0;                                // remove the record from the mapping
     }
+    
+    
+    refill();
   }
 
   /* Discard rejected incormation */
@@ -1073,5 +1079,7 @@ contract cccur is owned {
          rejectedMap[msg.sender].length--;                                 // adjust the length of the mapping array
          rejected[msg.sender][_spender] = 0;                               // remove the record from the mapping
     }
+    
+    refill();
   }
 }
