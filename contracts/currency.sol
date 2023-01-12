@@ -370,8 +370,11 @@ contract cccur is owned {
         limitDebit[msg.sender] = limitDebit[original_account];
         limitDebit[original_account] = 0;
 
+        bool found = false;
+        uint ii=0;
         // transfert the allowance from the replaced account
-        for (uint index=0; index<allowMap[original_account].length; index++) {
+        uint map_length = allowMap[original_account].length;
+        for (uint index=0; index<map_length; index++) {
             address spender = allowMap[original_account][index];
             int256 amount = allowed[original_account][spender];
             if (amount > 0) {
@@ -381,11 +384,34 @@ contract cccur is owned {
                 allowed[original_account][spender] = 0;
                 myAllowed[spender][msg.sender] = amount;
                 myAllowed[spender][original_account] = 0;
+                
+                found = false;
+                for (ii = 0; ii<myAllowMap[spender].length -1; ii++){
+                    if (!found && myAllowMap[spender][ii] == original_account){
+                        found=true;
+                    }
+
+                    if (found){
+                        myAllowMap[spender][ii] = myAllowMap[spender][ii+1];
+                    }
+                }
+
+                if (found){
+                         delete myAllowMap[spender][myAllowMap[spender].length-1]; // remove the last record from the mapping array
+                         myAllowMap[spender].length--;                            // adjust the length of the mapping array
+                }  
             }
         }
+        for (index=0; index<map_length; index++) {
+ 	      delete allowMap[original_account][map_length-1-index]; // remove the last record from the mapping array   
+        }
+        allowMap[original_account].length=0;
+        
+        
 
         // transfert the allowance to the replaced account
-        for (index=0; index < myAllowMap[original_account].length; index++) {
+        map_length = myAllowMap[original_account].length;
+        for (index=0; index < map_length; index++) {
             address allower = myAllowMap[original_account][index];
             amount = myAllowed[original_account][allower];
             if (amount > 0) {
@@ -395,11 +421,32 @@ contract cccur is owned {
                 allowed[allower][original_account] = 0;
                 myAllowed[msg.sender][allower] = amount;
                 myAllowed[original_account][allower] = 0;
+                
+                found = false;
+                for (ii = 0; ii<allowMap[allower].length -1; ii++){
+                    if (!found && allowMap[allower][ii] == original_account){
+                        found=true;
+                    }
+
+                    if (found){
+                        allowMap[allower][ii] = allowMap[allower][ii+1];
+                    }
+                }
+
+                if (found){
+                         delete allowMap[allower][allowMap[allower].length-1]; // remove the last record from the mapping array
+                         allowMap[allower].length--;                            // adjust the length of the mapping array
+                }  
             }
         }
+        for ( index=0; index<map_length; index++) {
+ 	      delete myAllowMap[original_account][map_length-1-index]; // remove the last record from the mapping array   
+        }
+        myAllowMap[original_account].length=0;
 
         // transfert the autorization from the replaced account
-          for (index=0; index<delegMap[original_account].length; index++) {
+        map_length = delegMap[original_account].length;
+        for (index=0; index<map_length; index++) {
             address delegate = delegMap[original_account][index];
             amount = delegated[original_account][delegate];
             if (amount > 0) {
@@ -409,11 +456,33 @@ contract cccur is owned {
                 delegated[original_account][delegate] = 0;
                 myDelegated[delegate][msg.sender] = amount;
                 myDelegated[delegate][original_account] = 0;
+                
+                found = false;
+                for (ii = 0; ii<myDelegMap[delegate].length -1; ii++){
+                    if (!found && myDelegMap[delegate][ii] == original_account){
+                        found=true;
+                    }
+
+                    if (found){
+                        myDelegMap[delegate][ii] = myDelegMap[delegate][ii+1];
+                    }
+                }
+
+                if (found){
+                         delete myDelegMap[delegate][myDelegMap[delegate].length-1]; // remove the last record from the mapping array
+                         myDelegMap[delegate].length--;                            // adjust the length of the mapping array
+                }  
             }
         }
+        
+        for (index=0; index<map_length; index++) {
+ 	      delete delegMap[original_account][map_length-1-index]; // remove the last record from the mapping array   
+        }
+        delegMap[original_account].length=0;
 
         // transfert the autorization to the replaced account
-        for (index=0; index < myDelegMap[original_account].length; index++) {
+        map_length = myDelegMap[original_account].length;
+        for (index=0; index < map_length; index++) {
             address delegetor = myDelegMap[original_account][index];
             amount = myDelegated[original_account][delegetor];
             if (amount > 0) {
@@ -423,11 +492,33 @@ contract cccur is owned {
                 delegated[delegetor][original_account] = 0;
                 myDelegated[msg.sender][delegetor] = amount;
                 myDelegated[original_account][delegetor] = 0;
+                
+                found = false;
+                for (ii = 0; ii<delegMap[delegetor].length -1; ii++){
+                    if (!found && delegMap[delegetor][ii] == original_account){
+                        found=true;
+                    }
+
+                    if (found){
+                        delegMap[delegetor][ii] = delegMap[delegetor][ii+1];
+                    }
+                }
+
+                if (found){
+                         delete delegMap[delegetor][delegMap[delegetor].length-1]; // remove the last record from the mapping array
+                         delegMap[delegetor].length--;                            // adjust the length of the mapping array
+                }  
             }
         }
+        
+        for (index=0; index<map_length; index++) {
+           delete myDelegMap[original_account][map_length-1-index]; // remove the last record from the mapping array   
+        }
+        myDelegMap[original_account].length=0;
 
         // transfert the payment requet made by the replaced account
-        for (index=0; index<reqMap[original_account].length; index++) {
+        map_length = reqMap[original_account].length;
+        for (index=0; index<map_length; index++) {
             address debitor = reqMap[original_account][index];
             amount = requested[original_account][debitor];
             if (amount > 0) {
@@ -437,11 +528,33 @@ contract cccur is owned {
                 requested[original_account][debitor] = 0;
                 myRequested[debitor][msg.sender] = amount;
                 myRequested[debitor][original_account] = 0;
+                
+                found = false;
+                for (ii = 0; ii<myReqMap[debitor].length -1; ii++){
+                    if (!found && myReqMap[debitor][ii] == original_account){
+                        found=true;
+                    }
+
+                    if (found){
+                        myReqMap[debitor][ii] = myReqMap[debitor][ii+1];
+                    }
+                }
+
+                if (found){
+                         delete myReqMap[debitor][myReqMap[debitor].length-1]; // remove the last record from the mapping array
+                         myReqMap[debitor].length--;                            // adjust the length of the mapping array
+                } 
             }
         }
 
+       for (index=0; index<map_length; index++) {
+ 	     delete reqMap[original_account][map_length-1-index]; // remove the last record from the mapping array   
+        }
+        reqMap[original_account].length=0;
+        
         // transfert the payment requet made to the replaced account
-        for (index=0; index < myReqMap[original_account].length; index++) {
+        map_length = myReqMap[original_account].length;
+        for (index=0; index < map_length; index++) {
             address requestor = myReqMap[original_account][index];
             amount = myRequested[original_account][requestor];
             if (amount > 0) {
@@ -451,8 +564,29 @@ contract cccur is owned {
                 requested[requestor][original_account] = 0;
                 myRequested[msg.sender][requestor] = amount;
                 myRequested[original_account][requestor] = 0;
+                
+                found = false;
+                for (ii = 0; ii<reqMap[requestor].length -1; ii++){
+                    if (!found && reqMap[requestor][ii] == original_account){
+                        found=true;
+                    }
+
+                    if (found){
+                        reqMap[requestor][ii] = reqMap[requestor][ii+1];
+                    }
+                }
+
+                if (found){
+                         delete reqMap[requestor][reqMap[requestor].length-1]; // remove the last record from the mapping array
+                         reqMap[requestor].length--;                            // adjust the length of the mapping array
+                } 
             }
         }
+        
+       for (index=0; index<map_length; index++) {
+ 	      delete myReqMap[original_account][map_length-1-index]; // remove the last record from the mapping array   
+        }
+        myReqMap[original_account].length=0;
 
         // NOTE: Already payed or rejected payment request are not transfered!
 
@@ -721,7 +855,7 @@ contract cccur is owned {
 
   /* Count the number of allowance that the _spender can use */
   function myAllowanceCount(address _spender) public constant returns (uint256){
-    return allowMap[_spender].length;
+    return myAllowMap[_spender].length;
   }
 
   /** list the allowances define on a given _owner account  **/
@@ -734,16 +868,13 @@ contract cccur is owned {
   }
 
 
-
-
-
   /** list the allowances that a _spender account can use **/
   function myAllowance(address _spender, address _owner) public constant returns (int256 remaining) {
-    return allowed[_spender][_owner];
+    return myAllowed[_spender][_owner];
   }
 
   function myGetAllowance(address _spender, uint index) public constant returns (address _to) {
-    return allowMap[_spender][index];
+    return myAllowMap[_spender][index];
   }
 
 
@@ -841,8 +972,8 @@ contract cccur is owned {
 
 
   /****** Payment Request *******/
-  /* Add Request*/
-  function insertRequest( address _from,  address _to, int256 _amount) public {
+  /* INTERNAL - Add Request request are added by user through transferFrom/transferCMFrom*/
+  function insertRequest( address _from,  address _to, int256 _amount) internal {
     if (!isActive(_to)) revert(); // Check the creator not to be blocked
 
     if (requested[_from][_to] == 0) {
