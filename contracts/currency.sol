@@ -634,13 +634,13 @@ contract cccur is owned {
   /* Transfer "on behalf of" of Coin and Mutual Credit (delegation) */
   /* Make Transfer "on behalf of" in coins*/
   function transferOnBehalfOf(address _from, address _to, int256 _value)public  {
-    if (delegated[_from][msg.sender] < _value) revert();
+    if (delegated[_from][msg.sender] < _value) revert(); // dev: value bigger than the delegation
     payNant(_from,_to,_value);
   }
 
   /* Make  Transfer "on behalf of" in Mutual Credit */
   function transferCMOnBehalfOf(address _from, address _to, int256 _value)public {
-    if (delegated[_from][msg.sender] < _value) revert();
+    if (delegated[_from][msg.sender] < _value) revert(); // dev: value bigger than the delegation
     payCM(_from,_to,_value);
   }
 
@@ -693,7 +693,7 @@ contract cccur is owned {
     int256 amount = _value - tax;
 
     if (!checkEL(_from, amount + tax)) revert(); // dev: Not enough balance
-    if (balanceEL[_to] + amount < balanceEL[_to]) revert(); //overflow check
+    if (balanceEL[_to] + amount < balanceEL[_to]) revert(); // dev: overflow and negative check
 
     // Do the transfer
     balanceEL[_from] -= amount + tax;         // Subtract from the sender
@@ -726,7 +726,7 @@ contract cccur is owned {
     // Check the limit & overflow
     if (!checkCMMin(_from, amount + tax)) revert();
     if (!checkCMMax(_to, amount)) revert();
-    if (balanceCM[_to] + amount < balanceCM[_to]) revert(); //overflow check
+    if (balanceCM[_to] + amount < balanceCM[_to]) revert(); // dev: overflow and negative check
 
     // Do the transfer
     balanceCM[_from] -= amount + tax;         // Subtract from the sender
@@ -883,7 +883,7 @@ contract cccur is owned {
   /* Allow _spender to pay on behalf of you from your account, multiple times, each transaction bellow the limit. */
   /* If called again the limit is replaced by the new _amount, if _amount is 0 the delegation is removed */
   function delegate(address _spender, int256 _amount) public {
-    if (!isActive(msg.sender)) revert();
+    if (!isActive(msg.sender)) revert(); // dev: sender account not actif
 
     if (_amount>0){
         if (delegated[msg.sender][_spender] == 0) {

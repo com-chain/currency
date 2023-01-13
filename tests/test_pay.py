@@ -59,6 +59,8 @@ def test_pay_nant(Accounts, c):
     assert c.balanceOf(john) == 7000
     assert c.balanceOf(joe) == 3000
     
+    
+
 
     
 def test_pay_nant_tax(Accounts, c):
@@ -122,6 +124,9 @@ def test_pay_nant_unsuccessfull(Accounts, c):
    
     assert c.balanceEL(john) == 7000
     assert c.balanceEL(joe) == 3000  
+    
+    with reverts("dev: overflow and negative check"):
+        john.transfer(joe,-1) 
     
     
 def test_pay_cm(Accounts, c):
@@ -209,7 +214,10 @@ def test_pay_cm_unsuccessfull(Accounts, c):
     john.transferCM(joe,10000) 
    
     assert c.balanceCM(john) == -10000
-    assert c.balanceCM(joe) == 10000         
+    assert c.balanceCM(joe) == 10000     
+    
+    with reverts("dev: overflow and negative check"):
+        john.transferCM(joe,-1)     
 
 
 def test_balanceOf(Accounts, c):
