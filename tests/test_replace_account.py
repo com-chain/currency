@@ -17,7 +17,7 @@ def test_replace_account_standard(Accounts, c):
     joe2 = Accounts[5]
     joe3 = Accounts[6]
 
-    owner.setAccountParams(john1, True, 1, -1000, 3000)
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
     owner.pledge(john1, 100)
     
     # Create and check delegation
@@ -32,7 +32,7 @@ def test_replace_account_standard(Accounts, c):
     assert c.allowanceCount(john1)==1
     
     # Create and check a payement request
-    owner.setAccountParams(joe3, True, 1, -1000, 3000)
+    owner.setAccountParams(joe3, True, 1, 3000, -1000)
     joe3.transferFrom(john1,13)
     assert c.requestCount(john1)==1
     assert c.myRequestCount(joe3)==1
@@ -51,10 +51,10 @@ def test_replace_account_standard(Accounts, c):
     assert c.accountStatus(john2) is True
 
     assert c.limitCredit(john1) == 0
-    assert c.limitCredit(john2) == 3000
+    assert c.limitCredit(john2) == -1000
 
     assert c.limitDebit(john1) == 0
-    assert c.limitDebit(john2) == -1000
+    assert c.limitDebit(john2) == 3000
     
     
     assert c.delegationCount(john1) == 0  
@@ -92,7 +92,7 @@ def test_replace_account_standard_with_cancel(Accounts, c):
     john1 = Accounts[1]
     john2 = Accounts[2]
 
-    owner.setAccountParams(john1, True, 1, -1000, 3000)
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
     owner.pledge(john1, 100)
 
     john1.allowReplaceBy(john2)
@@ -111,10 +111,10 @@ def test_replace_account_standard_with_cancel(Accounts, c):
     assert c.accountStatus(john2) is True
 
     assert c.limitCredit(john1) == 0
-    assert c.limitCredit(john2) == 3000
+    assert c.limitCredit(john2) == -1000
 
     assert c.limitDebit(john1) == 0
-    assert c.limitDebit(john2) == -1000
+    assert c.limitDebit(john2) == 3000
 
 
 def test_replace_account_two_request(Accounts, c):
@@ -123,7 +123,7 @@ def test_replace_account_two_request(Accounts, c):
     john1 = Accounts[1]
     john2 = Accounts[2]
 
-    owner.setAccountParams(john1, True, 1, -1000, 3000)
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
     owner.pledge(john1, 100)
 
     john1.allowReplaceBy(john2)
@@ -138,7 +138,7 @@ def test_replace_account_cancel_request(Accounts, c):
     john1 = Accounts[1]
     john2 = Accounts[2]
 
-    owner.setAccountParams(john1, True, 1, -1000, 3000)
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
     owner.pledge(john1, 100)
 
     john1.allowReplaceBy(john2)
@@ -154,7 +154,7 @@ def test_replace_account_no_previous_request(Accounts, c):
     john1 = Accounts[1]
     john2 = Accounts[2]
 
-    owner.setAccountParams(john1, True, 1, -1000, 3000)
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
     owner.pledge(john1, 100)
 
     with reverts("dev: replacement request not initiated"):
@@ -168,8 +168,8 @@ def test_replace_account_not_new_target(Accounts, c):
     billy = Accounts[2]
     walter = Accounts[3]
 
-    owner.setAccountParams(john, True, 2, -1000, 3000)
-    owner.setAccountParams(billy, True, 0, -500, 1000)
+    owner.setAccountParams(john, True, 2, 3000, -1000)
+    owner.setAccountParams(billy, True, 0, 1000, -500)
     owner.pledge(john, 100)
 
     ## Billy is already used account
@@ -179,7 +179,7 @@ def test_replace_account_not_new_target(Accounts, c):
     ## Walter is not yet used
     john.allowReplaceBy(walter)
     ##  .. but we'll use it
-    owner.setAccountParams(walter, True, 0, -750, 1500)
+    owner.setAccountParams(walter, True, 0, 1500, -750)
     ##  .. so on acceptReplace time, do nothing and remove request
     walter.acceptReplaceAccount(john)
 
@@ -195,11 +195,11 @@ def test_replace_account_not_new_target(Accounts, c):
     assert c.accountStatus(john) is True
     assert c.accountStatus(walter) is True
 
-    assert c.limitCredit(john) == 3000
-    assert c.limitCredit(walter) == 1500
+    assert c.limitCredit(john) == -1000
+    assert c.limitCredit(walter) == -750
 
-    assert c.limitDebit(john) == -1000
-    assert c.limitDebit(walter) == -750
+    assert c.limitDebit(john) == 3000
+    assert c.limitDebit(walter) == 1500
 
     
 
@@ -210,8 +210,8 @@ def test_replace_account_crossover(Accounts, c):
     john2 = Accounts[2]
     walter = Accounts[3]
 
-    owner.setAccountParams(john1, True, 2, -1000, 3000)
-    owner.setAccountParams(walter, True, 0, -500, 1000)
+    owner.setAccountParams(john1, True, 2, 3000, -1000)
+    owner.setAccountParams(walter, True, 0, 1000, -500)
     owner.pledge(john1, 100)
 
     john1.allowReplaceBy(john2)
@@ -230,10 +230,10 @@ def test_replace_account_crossover(Accounts, c):
     assert c.accountStatus(john2) is True
 
     assert c.limitCredit(john1) == 0
-    assert c.limitCredit(john2) == 3000
+    assert c.limitCredit(john2) == -1000
 
     assert c.limitDebit(john1) == 0
-    assert c.limitDebit(john2) == -1000
+    assert c.limitDebit(john2) == 3000
 
 
 def test_replace_account_to_non_new_account(Accounts, c):
@@ -243,13 +243,13 @@ def test_replace_account_to_non_new_account(Accounts, c):
     john2 = Accounts[2]
     walter = Accounts[3]
 
-    owner.setAccountParams(john1, True, 1, -1000, 3000)
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
     owner.pledge(john1, 100)
 
     with reverts("dev: only new account can be target of a replacement"):
         john1.allowReplaceBy(owner)
 
-    owner.setAccountParams(walter, True, 0, -1000, 3000)
+    owner.setAccountParams(walter, True, 0, 3000, -1000)
     with reverts("dev: only new account can be target of a replacement"):
         john1.allowReplaceBy(walter)
 
@@ -264,7 +264,7 @@ def test_replaced_account_not_usable(Accounts, c):
     john2 = Accounts[2]
     walter = Accounts[3]
 
-    owner.setAccountParams(john1, True, 1, -1000, 3000)
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
     owner.pledge(john1, 100)
 
     john1.allowReplaceBy(john2)
@@ -272,4 +272,4 @@ def test_replaced_account_not_usable(Accounts, c):
 
     ## Can't set properties of a replaced account
     with reverts("dev: replaced account cannot be modified"):
-        owner.setAccountParams(john1, True, 1, -1000, 3000)
+        owner.setAccountParams(john1, True, 1, 3000, -1000)

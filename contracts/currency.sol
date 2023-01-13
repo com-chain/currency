@@ -677,10 +677,10 @@ contract cccur is owned {
 
   /* INTERNAL - Coin transfer  */
   function payNant(address _from,address _to, int256 _value) internal {
-    if (!actif) revert();  // panic lock
+    if (!actif) revert();  // dev: panic lock
 
-    if (!isActive(_from)) revert();  //Check neither of the Account are locked
-    if (!isActive(_to)) revert();
+    if (!isActive(_from)) revert();  // dev: Source account is locked
+    if (!isActive(_to)) revert();  // dev: Target account is locked
 
     // compute the tax
     int16 tax_percent = percent;
@@ -692,7 +692,7 @@ contract cccur is owned {
     // compute the received ammount
     int256 amount = _value - tax;
 
-    if (!checkEL(_from, amount + tax)) revert(); // check coin availability
+    if (!checkEL(_from, amount + tax)) revert(); // dev: Not enough balance
     if (balanceEL[_to] + amount < balanceEL[_to]) revert(); //overflow check
 
     // Do the transfer
@@ -709,9 +709,9 @@ contract cccur is owned {
 
   /* INTERNAL - Mutual Credit (Barter) transfer  */
   function payCM(address _from, address _to, int256 _value) internal {
-    if (!actif) revert();  // panic lock
-    if (!isActive(_from)) revert();  //Check neither of the Account are locked
-    if (!isActive(_to)) revert();
+    if (!actif) revert();  // dev: panic lock
+    if (!isActive(_from)) revert();  // dev: Source account is locked
+    if (!isActive(_to)) revert(); // dev: Target account is locked
 
     // compute the tax
     int16 tax_percent = percent;
@@ -744,7 +744,7 @@ contract cccur is owned {
   function checkEL(address _addr, int256 _value) internal view returns (bool)  {
     int256 checkBalance = balanceEL[_addr] - _value;
     if (checkBalance < 0) {
-      revert();
+      revert(); // dev: Not enough balance
     } else {
       return true;
     }
@@ -755,7 +755,7 @@ contract cccur is owned {
     int256 checkBalance = balanceCM[_addr] - _value;
     int256 limitCM = limitCredit[_addr];
     if (checkBalance < limitCM) {
-      revert();
+      revert(); // dev: Inferior credit limit hit
     } else {
       return true;
     }
@@ -766,7 +766,7 @@ contract cccur is owned {
     int256 checkBalance = balanceCM[_addr] + _value;
     int256 limitCM = limitDebit[_addr];
     if (checkBalance > limitCM) {
-      revert();
+      revert(); // dev: Supperior credit limit hit
     } else {
       return true;
     }
