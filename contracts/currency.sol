@@ -777,7 +777,7 @@ contract cccur is owned {
   /* Allow _spender to withdraw from your account, multiple times, up to the _value amount.  */
   /* If called again the _amount is added to the allowance, if amount is negatif the allowance is deleted  */
   function approve(address _spender, int256 _amount) public returns (bool success) {
-    if (!isActive(msg.sender)) revert();  // Check the sender not to be blocked
+    if (!isActive(msg.sender)) revert();  // dev: sender account not actif
 
 
     if (_amount>=0){
@@ -974,14 +974,14 @@ contract cccur is owned {
   /****** Payment Request *******/
   /* INTERNAL - Add Request request are added by user through transferFrom/transferCMFrom*/
   function insertRequest( address _from,  address _to, int256 _amount) internal {
-    if (!isActive(_to)) revert(); // Check the creator not to be blocked
+    if (!isActive(_to)) revert(); // dev: Check the creator not to be blocked
 
     if (requested[_from][_to] == 0) {
       reqMap[_from].push(_to);
       myReqMap[_to].push(_from);
     }
 
-    if (requested[_from][_to] + _amount < 0) revert();
+    if (requested[_from][_to] + _amount < 0) revert(); // dev: Ensure that the resulting request is not <0
     requested[_from][_to] += _amount;
     myRequested[_to][_from] += _amount;
     topUp(_to);
@@ -994,7 +994,7 @@ contract cccur is owned {
     if (!isActive(_to)) revert();
     if (msg.sender != _from) revert();                // Ensure that the message come from the account who pay
     if (_value > 0) revert();                         // Ensure that the request cannot de augmented
-    if (requested[_from][_to] + _value < 0) revert(); // Ensure that the resulting request is not <0
+    if (requested[_from][_to] + _value < 0) revert(); // dev: Ensure that the resulting request is not <0
     requested[_from][_to] += _value;
     myRequested[_to][_from] += _value;
     topUp(_to);
@@ -1003,7 +1003,7 @@ contract cccur is owned {
 
   /* INTERNAL - Allow the account who pay to delete the request  */
   function clear_request(address _from, address _to) internal {
-    if (msg.sender != _from) revert();                // Ensure that the message come from the account who pay
+    if (msg.sender != _from) revert();                // dev: Ensure that the message come from the account who pay
     bool found;
       uint i;
       if (requested[_from][_to]<=0){

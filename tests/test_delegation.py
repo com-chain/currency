@@ -23,11 +23,11 @@ def test_set_delegation(Accounts, c):
     john.delegate(joe, 100)
     
     assert c.delegationCount(john) == 1
-    # assert c.getDelegation(john,1) == joe # need to recover the address
+    assert c.getDelegation(john,0) == accounts[2] 
     assert c.delegation(john, joe) == 100
     
     assert c.myDelegationCount(joe) == 1
-    # assert c.myGetDelegation(joe,1) == joe # need to recover the address
+    assert c.myGetDelegation(joe,0) == accounts[1]
     assert c.myDelegation(joe, john) == 100
     
 def test_update_delegation(Accounts, c):   
@@ -42,7 +42,7 @@ def test_update_delegation(Accounts, c):
     john.delegate(joe, 100) 
     
     assert c.delegationCount(john) == 1
-    # assert c.getDelegation(john,1) == joe # need to recover the address
+    assert c.getDelegation(john,0) == accounts[2]
     assert c.delegation(john, joe) == 100
     
     # update delegation

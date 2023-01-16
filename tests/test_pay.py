@@ -9,7 +9,7 @@ def test_set_tax(Accounts, c):
     tax_recep = Accounts[1]
     
     # Contract Initial values:
-    # assert c.getTaxAccount == owner  # need to recover the address
+    assert c.getTaxAccount == accounts[0]  
     assert c.getTaxPercent == 0
     assert c.getTaxPercentLeg == 0
     
@@ -19,7 +19,7 @@ def test_set_tax(Accounts, c):
     owner.setTaxPercentLeg(17)
     
     # check
-    # assert c.getTaxAccount == tax_recep  # need to recover the address
+    assert c.getTaxAccount == accounts[1]
     assert c.getTaxPercent == 13
     assert c.getTaxPercentLeg == 17
     
