@@ -12,11 +12,14 @@ def test_automatic_unlock_base(Accounts, c):
     owner = Accounts[0]
     john = Accounts[1]
     bob = Accounts[2]
-    
+
+    owner_balance = owner.balance
 
     ## Can't pledge towards a non activated account
     with reverts("dev: disabled accounts can't receive pledge"):
         owner.pledge(john, 100)
+
+    assert owner.balance < owner_balance
 
     assert c.balanceOf(john) == 0
 
@@ -40,8 +43,7 @@ def test_automatic_unlock_base(Accounts, c):
         owner.pledge(bob, 100)
 
     assert c.balanceOf(bob) == 0
-    
-    assert owner._account.balance()==100000000000000000000  # Show that gaz is not consumed during transaction...
+
 
 def test_automatic_unlock_permission(Accounts, c):
 

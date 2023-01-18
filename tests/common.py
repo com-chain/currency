@@ -23,8 +23,10 @@ class Account(object):
                 return lambda *args: \
                     fn(*[a._account if isinstance(a, Account) else a
                          for a in args],
-                       {"from": self._account})
+                       {"from": self._account, "gas_price": 1})
             else:
+                if key == "balance":
+                    return self._account.balance()
                 import pdb; pdb.set_trace()
                 pass
         raise AttributeError
@@ -43,7 +45,8 @@ class Currency(object):
                     return fn()
                 return lambda *args: \
                     fn(*[a._account if isinstance(a, Account) else a
-                         for a in args])
+                         for a in args],
+                       {"gas_price": 1})
             elif isinstance(fn, ContractTx):
                 raise Error("Must call from an account")
             else:
