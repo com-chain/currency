@@ -97,3 +97,22 @@ cat build/contracts/cccur.json |
     jq '.abi[] | select(.name != null) |
         ( .name + "(" + ([ .inputs[].type ] | join(",")) + ")"  )'
 ```
+
+To provide the ethereum selector with the signature, you could:
+
+```shell
+  cat build/contracts/cccur.json |
+      jq -r '.abi[] | select(.name != null) |
+          ( .name + "(" + ([ .inputs[].type ] | join(",")) + ")"  )' |
+      while read sig; do
+          echo "$sig:$(selector "$sig")"
+      done | sort > hashes
+```
+
+This will produce a `hashes` file in your current directory that you
+can compare for `hashes.legacy`, the hashes of the legacy comchain
+smartcontract. For instance:
+
+```shell
+diff -u0 hashes.legacy hashes | grep -v '^@' | tail -n +3
+```
