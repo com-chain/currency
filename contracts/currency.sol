@@ -314,7 +314,7 @@ contract cccur is owned {
   }
 
   function allowReplaceBy(address target) public payable {
-     if (!actif) revert();                                                      // panic lock
+     if (!actif) revert();                                                      // dev: panic lock
      if (newAddress[msg.sender] != address(0))
          revert();  // dev: already replaced account cannot be replaced again
      if (!isActive(msg.sender))
@@ -330,7 +330,7 @@ contract cccur is owned {
   }
 
   function CancelReplaceBy() public  {
-     if (!actif) revert();                                                      // panic lock
+     if (!actif) revert();                                                      // dev: panic lock
      if (requestReplacementFrom[msg.sender] == address(0))
          revert();  // dev: no replacement request ongoing to cancel
 
@@ -341,7 +341,7 @@ contract cccur is owned {
 
   /* replace the current account by a new one transfering its content */
   function acceptReplaceAccount(address original_account) public {
-     if (!actif) revert();                                                      // panic lock
+     if (!actif) revert();                                                      // dev: panic lock
      if (requestReplacementFrom[original_account] != msg.sender)
          revert();  // dev: replacement request not initiated
      if (accountAlreadyUsed[msg.sender] == true         // only new account can be a replacement target

@@ -5,7 +5,6 @@ from .common import currency, Accounts, c, isolation
 from brownie import cccur, accounts, reverts
 
 
-## YYYvlab: check panic lock
 
 def test_replace_account_standard(Accounts, c):
 
@@ -273,3 +272,36 @@ def test_replaced_account_not_usable(Accounts, c):
     ## Can't set properties of a replaced account
     with reverts("dev: replaced account cannot be modified"):
         owner.setAccountParams(john1, True, 1, 3000, -1000)
+        
+        
+def test_replace_account_panick_lock(Accounts, c):
+    owner = Accounts[0]
+    john1 = Accounts[1]
+    john2 = Accounts[2]
+
+    owner.setAccountParams(john1, True, 1, 3000, -1000)
+    owner.pledge(john1, 100)
+
+    owner.setContractStatus(False)   
+    with reverts("dev: panic lock"):
+        john1.allowReplaceBy(john2)
+    owner.setContractStatus(True)  
+    
+    john1.allowReplaceBy(john2) 
+    owner.setContractStatus(False)   
+    with reverts("dev: panic lock"):
+        john1.CancelReplaceBy()
+    with reverts("dev: panic lock"):
+        john2.acceptReplaceAccount(john1)
+    owner.setContractStatus(True)  
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+     
