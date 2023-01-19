@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from .common import currency, Accounts, c
+from .common import currency, Accounts, c, isolation
 
 from brownie import cccur, accounts, reverts
 

@@ -87,4 +87,7 @@ def Accounts(currency):
 def owner(Accounts):
     return Accounts[0]
 
-
+## Provides test isolation
+@fixture(autouse=True)
+def isolation(fn_isolation):
+    pass
