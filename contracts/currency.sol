@@ -91,7 +91,7 @@ contract cccur is owned {
 
 
   /* Transfert limitation */
-  mapping(int256 => mapping(int256 => bool)) public transfertRule; // set which account type can pay to which account type 
+  mapping(int256 => mapping(int256 => bool)) public preventTransferRules; // set which account type can pay to which account type 
 
   /* Allowance, Authorization and Request:*/
 
@@ -149,11 +149,6 @@ contract cccur is owned {
     name = _name;
     symbol = _symbol;
     setFirstAdmin();
-    /* Default transfert rules */
-    transfertRule[0][0]=true;    // person to person
-    transfertRule[0][1]=true;    // person to enterprise
-    transfertRule[1][0]=true;    // enterprise to person 
-    transfertRule[1][1]=true;    // enterprise to enterprise 
   }
 
   /* INTERNAL - Set the first super admin (2) and ensure that this account is of the good type and actif.*/
@@ -205,8 +200,8 @@ contract cccur is owned {
   }
 
   /* Manage the transfert rule */
-  function setTransfertRule(int256 _senderType,int256 _recieverType, bool _newTransfertRule) public onlyOwner {
-    transfertRule[_senderType][_recieverType]=_newTransfertRule;
+  function setPreventTransferRules(int256 _senderType,int256 _recieverType, bool _newPreventTransferRules) public onlyOwner {
+    preventTransferRules[_senderType][_recieverType]=_newPreventTransferRules;
   }
 
   /* INTERNAL - Top up function: Check that an account has enough ETH if not send some to it */
@@ -696,7 +691,7 @@ contract cccur is owned {
     if (!isActive(_from)) revert();  // dev: Source account is locked
     if (!isActive(_to)) revert();  // dev: Target account is locked
 
-    if (!transfertRule[accountType[_from]][accountType[_to]]) revert(); // dev: This transaction is not autorized by the transfertRule
+    if (preventTransferRules[accountType[_from]][accountType[_to]]) revert(); // dev: This transaction is not autorized by the preventTransferRules
 
     // compute the tax
     int16 tax_percent = percent;
@@ -729,7 +724,7 @@ contract cccur is owned {
     if (!isActive(_from)) revert();  // dev: Source account is locked
     if (!isActive(_to)) revert(); // dev: Target account is locked
 
-    if (!transfertRule[accountType[_from]][accountType[_to]]) revert(); // dev: This transaction is not autorized by the transfertRule
+    if (preventTransferRules[accountType[_from]][accountType[_to]]) revert(); // dev: This transaction is not autorized by the preventTransferRules
 
     // compute the tax
     int16 tax_percent = percent;
