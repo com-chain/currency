@@ -51,7 +51,7 @@ contract cccur is owned {
   /* Name and symbol (for ComChain internal use) */
   string  public name           = "";
   string  public symbol         = "";
-  string  public version        = "2.0";
+  string  public version        = "2.1";
 
   /* Total amount pledged (Money supply) */
   int256  public amountPledged  = 0;
@@ -88,6 +88,10 @@ contract cccur is owned {
   mapping (address => int256) public limitDebit;                // Max limit  (maximal accepted CM amount expected to be 0 or >0 )
   mapping (address => address) public requestReplacementFrom;   // Pending replacement request the key is the Account to be replaced
   mapping (address => address) public newAddress;               // Address which replaces the current one
+
+
+  /* Transfert limitation */
+  mapping(int256 => mapping(int256 => bool)) public transfertRule; // set which account type can pay to which account type 
 
   /* Allowance, Authorization and Request:*/
 
@@ -145,6 +149,11 @@ contract cccur is owned {
     name = _name;
     symbol = _symbol;
     setFirstAdmin();
+    /* Default transfert rules */
+    transfertRule[0][0]=true;    // person to person
+    transfertRule[0][1]=true;    // person to enterprise
+    transfertRule[1][0]=true;    // enterprise to person 
+    transfertRule[1][1]=true;    // enterprise to enterprise 
   }
 
   /* INTERNAL - Set the first super admin (2) and ensure that this account is of the good type and actif.*/
@@ -193,6 +202,11 @@ contract cccur is owned {
   /* Panic button: allows to block any currency transfer */
   function setContractStatus(bool _actif) public onlyOwner {
       actif=_actif;
+  }
+
+  /* Manage the transfert rule */
+  function setTransfertRule(int256 _senderType,int256 _recieverType, bool _newTransfertRule) public onlyOwner {
+    transfertRule[_senderType][_recieverType]=_newTransfertRule;
   }
 
   /* INTERNAL - Top up function: Check that an account has enough ETH if not send some to it */
@@ -682,6 +696,8 @@ contract cccur is owned {
     if (!isActive(_from)) revert();  // dev: Source account is locked
     if (!isActive(_to)) revert();  // dev: Target account is locked
 
+    if (!transfertRule[accountType[_from]][accountType[_to]]) revert(); // dev: This transaction is not autorized by the transfertRule
+
     // compute the tax
     int16 tax_percent = percent;
     if (accountType[_to] == 1){
@@ -712,6 +728,8 @@ contract cccur is owned {
     if (!actif) revert();  // dev: panic lock
     if (!isActive(_from)) revert();  // dev: Source account is locked
     if (!isActive(_to)) revert(); // dev: Target account is locked
+
+    if (!transfertRule[accountType[_from]][accountType[_to]]) revert(); // dev: This transaction is not autorized by the transfertRule
 
     // compute the tax
     int16 tax_percent = percent;
@@ -1214,3 +1232,4 @@ contract cccur is owned {
     refill();
   }
 }
+
