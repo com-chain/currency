@@ -645,14 +645,14 @@ contract cccur is owned {
   function transferOnBehalfOf(address _from, address _to, int256 _value)public  {
     if (delegated[_from][msg.sender] < _value) revert(); // dev: value bigger than the delegation
     payNant(_from,_to,_value);
-    topUp(msg.sender);
+    refill();
   }
 
   /* Make  Transfer "on behalf of" in Mutual Credit */
   function transferCMOnBehalfOf(address _from, address _to, int256 _value)public {
     if (delegated[_from][msg.sender] < _value) revert(); // dev: value bigger than the delegation
     payCM(_from,_to,_value);
-    topUp(msg.sender);
+    refill();
   }
 
   /* Transfer request of Coin and Mutual Credit (delegation & pay request)*/
